@@ -3,33 +3,59 @@ pragma solidity ^0.8.20;
 
 import "../core/SagaCommit.sol";
 
+/// @title ElyndraCommitment
+/// @notice Season 1 faction alignment for Elyndra
 contract ElyndraCommitment is SagaCommit {
+    uint256 public constant SAGA_ID = 1;
+    uint256 public constant SEASON_ID = 1;
+
+    /// @dev Set this before deployment
+    uint256 public immutable SEASON_END_BLOCK;
+
     enum Faction {
         Flame,
         Veil,
         Echo,
-        Crown
+        CrownPlaceholder // Crown is emergent; placeholder prevents enum reuse
     }
 
-    mapping(address => Faction) public factionChoice;
+    mapping(address => Faction) public factionOf;
+    mapping(address => bool) public hasChosen;
 
     event FactionChosen(address indexed user, Faction faction);
 
-    constructor(address registryAddress)
-        SagaCommit(registryAddress)
-    {}
+    modifier seasonActive() {
+        require(block.number < SEASON_END_BLOCK, "Elyndra: season ended");
+        _;
+    }
 
-    function chooseFaction(Faction faction) external {
-        bytes32 commitmentHash = keccak256(
-            abi.encodePacked(msg.sender, faction, block.number)
+    constructor(
+        address registryAddress,
+        uint256 seasonEndBlock
+    ) SagaCommit(registryAddress) {
+        require(seasonEndBlock > block.number, "Elyndra: invalid end block");
+        SEASON_END_BLOCK = seasonEndBlock;
+    }
+
+    /// @notice Choose faction once for Season 1 (irreversible)
+    function chooseFaction(Faction faction) external seasonActive {
+        require(!hasChosen[msg.sender], "Elyndra: already chosen");
+        require(
+            faction == Faction.Flame ||
+            faction == Faction.Veil ||
+            faction == Faction.Echo,
+            "Elyndra: invalid faction"
         );
 
-        // Saga 1, Season 1 (hardcoded intentionally)
-        commit(commitmentHash, 1, 1);
+        bytes32 commitmentHash = keccak256(
+            abi.encodePacked(msg.sender, faction, SAGA_ID, SEASON_ID)
+        );
 
-        factionChoice[msg.sender] = faction;
+        _commit(msg.sender, commitmentHash, SAGA_ID, SEASON_ID);
+
+        hasChosen[msg.sender] = true;
+        factionOf[msg.sender] = faction;
 
         emit FactionChosen(msg.sender, faction);
     }
 }
-
