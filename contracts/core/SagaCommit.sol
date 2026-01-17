@@ -3,14 +3,16 @@ pragma solidity ^0.8.20;
 
 import "./SagaRegistry.sol";
 
+/// @title SagaCommit
+/// @notice Generic irreversible commitment engine
 contract SagaCommit {
-    SagaRegistry public registry;
+    SagaRegistry public immutable registry;
 
     struct Commitment {
         uint256 sagaId;
-        uint256 season;
+        uint256 seasonId;
         bytes32 commitmentHash;
-        uint256 timestamp;
+        uint256 blockNumber;
     }
 
     mapping(address => Commitment) public commitments;
@@ -18,30 +20,35 @@ contract SagaCommit {
     event Committed(
         address indexed user,
         uint256 sagaId,
-        uint256 season,
+        uint256 seasonId,
         bytes32 commitmentHash
     );
 
     constructor(address registryAddress) {
+        require(registryAddress != address(0), "SagaCommit: invalid registry");
         registry = SagaRegistry(registryAddress);
     }
 
-    function commit(bytes32 commitmentHash, uint256 sagaId, uint256 season)
-        external
-    {
-        (bool registered,, , bool locked) = registry.getState(msg.sender);
-        require(registered, "Not registered");
-        require(!locked, "Already committed this season");
+    /// @notice Commit once per season (final)
+    function _commit(
+        address user,
+        bytes32 commitmentHash,
+        uint256 sagaId,
+        uint256 seasonId
+    ) internal {
+        (bool registered,, , bool locked) = registry.getState(user);
+        require(registered, "SagaCommit: not registered");
+        require(!locked, "SagaCommit: already committed");
 
-        registry.lockSeason(msg.sender, sagaId, season);
+        registry.lockSeason(user, sagaId, seasonId);
 
-        commitments[msg.sender] = Commitment({
+        commitments[user] = Commitment({
             sagaId: sagaId,
-            season: season,
+            seasonId: seasonId,
             commitmentHash: commitmentHash,
-            timestamp: block.timestamp
+            blockNumber: block.number
         });
 
-        emit Committed(msg.sender, sagaId, season, commitmentHash);
+        emit Committed(user, sagaId, seasonId, commitmentHash);
     }
 }
