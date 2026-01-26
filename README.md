@@ -266,6 +266,12 @@ If you are here, you are early.
 If you choose, you will be remembered.
 
 
+# References:
+## Axiom
+
+- [Philosophy](animasaga/docs/axiom/philosophy.md)
+
+
 
 # License
 
