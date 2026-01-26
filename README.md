@@ -265,6 +265,8 @@ It is about recorded intent.
 If you are here, you are early.
 If you choose, you will be remembered.
 
-License
+
+
+# License
 
 MIT — with narrative consequences.
