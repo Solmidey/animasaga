@@ -1,40 +1,17 @@
 # The Commandments
 
-These laws govern all AnimaSaga systems.
+These rules are non-negotiable.
 
-They are non-negotiable.
+- Never connect frontend directly to a database
+- Gatekeep every single action server-side
+- Do not hide premium logic in the client
+- Keep secrets off the browser
+- Environment variables do not imply safety
+- Never do sensitive math on the client
+- Sanitize all inputs
+- Rate-limit every meaningful action
+- Never log sensitive information
+- Keep dependencies updated
+- Handle errors without leaking internals
 
-## I. No Direct Database Access
-All data access must pass through server-side middleware.
-
-## II. Gatekeep Every Action
-Every endpoint must verify identity and authorization.
-
-## III. Do Not Hide, Withhold
-Premium data is never sent unless entitlement is verified server-side.
-
-## IV. Keep Secrets Off the Browser
-No API keys, secrets, or private logic may exist client-side.
-
-## V. .env Is Not Security
-Secrets must never be bundled into client code.
-
-## VI. Do Not Do Math on the Phone
-All sensitive calculations occur server-side.
-
-## VII. Sanitize Everything
-All inputs are treated as hostile by default.
-
-## VIII. Rate Limit All Actions
-No endpoint may be spammed.
-
-## IX. Do Not Log Sensitive Data
-Logs must never expose secrets or personal data.
-
-## X. Keep Dependencies Updated
-Known vulnerabilities are unacceptable.
-
-## XI. Handle Errors Quietly
-Users see minimal errors. Full logs remain server-side.
-
-These Commandments persist across Seasons.
+Any system that violates these rules is invalid by design.
