@@ -1,4 +1,4 @@
-🌒 AnimaSaga
+# 🌒 AnimaSaga
 
 An onchain saga engine for Elyndra.
 Where alignment is permanent, choice is costly, and stories remember.
