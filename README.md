@@ -276,3 +276,28 @@ If you choose, you will be remembered.
 # License
 
 MIT — with narrative consequences.
+
+---
+
+## 📜 Documentation
+
+📚 Full canonical documentation lives in [`/docs`](docs/README.md)
+
+### Lore
+- [The World of Elyndra](docs/lore/elyndra.md)
+- [Faction Symbolism](docs/lore/factions.md)
+- [Seasons & Fractures](docs/lore/seasons.md)
+
+### Architecture
+- [System Overview](docs/architecture/overview.md)
+- [Security Model](docs/architecture/security.md)
+- [The Commandments](docs/architecture/commandments.md)
+
+### Smart Contracts
+- [SagaRegistry.sol](docs/contracts/saga-registry.md)
+- [SagaCommit.sol](docs/contracts/saga-commit.md)
+
+### Axiom
+- [Axiom Philosophy](docs/axiom/philosophy.md)
+- [API Design](docs/axiom/api-design.md)
+- [Voice & Canon](docs/axiom/voice.md)
