@@ -269,7 +269,7 @@ If you choose, you will be remembered.
 # References:
 ## Axiom
 
-- [Philosophy](animasaga/docs/axiom/philosophy.md)
+- [Philosophy](docs/axiom/philosophy.md)
 
 
 
