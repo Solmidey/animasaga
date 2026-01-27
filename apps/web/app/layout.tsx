@@ -1,6 +1,8 @@
+// apps/web/app/layout.tsx
 import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
+import SoundToggle from "@/components/SoundToggle";
 import { Cinzel, Inter } from "next/font/google";
 
 const display = Cinzel({
@@ -26,7 +28,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${display.variable} ${body.variable}`}>
       <body className="bg-black text-zinc-100 antialiased">
-        <Providers>{children}</Providers>
+        <Providers>
+          <SoundToggle />
+          {children}
+        </Providers>
       </body>
     </html>
   );

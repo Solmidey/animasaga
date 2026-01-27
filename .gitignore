@@ -1,0 +1,12 @@
+
+# --- Next.js / Node ---
+apps/web/node_modules/
+apps/web/.next/
+apps/web/.env.local
+apps/web/.env.*
+apps/web/npm-debug.log*
+apps/web/yarn-debug.log*
+apps/web/yarn-error.log*
+
+# OS / editor
+.DS_Store

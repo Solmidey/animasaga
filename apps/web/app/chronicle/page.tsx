@@ -1,6 +1,7 @@
 // apps/web/app/chronicle/page.tsx
 import Link from "next/link";
 import { getChronicleSnapshot } from "@/lib/base-reader";
+import { getElyndraStats } from "@/lib/stats-reader";
 
 export const revalidate = 10;
 
@@ -15,13 +16,10 @@ function formatDuration(seconds: number) {
 }
 
 export default async function ChroniclePage() {
-  let data: Awaited<ReturnType<typeof getChronicleSnapshot>> | null = null;
-
-  try {
-    data = await getChronicleSnapshot();
-  } catch {
-    data = null;
-  }
+  const [data, stats] = await Promise.all([
+    getChronicleSnapshot().catch(() => null),
+    getElyndraStats().catch(() => null),
+  ]);
 
   if (!data) {
     return (
@@ -29,9 +27,7 @@ export default async function ChroniclePage() {
         <div className="mx-auto max-w-3xl px-6 py-20">
           <p className="text-xs tracking-[0.28em] text-zinc-200/60">CHRONICLE</p>
           <h1 className="mt-4 font-display text-4xl md:text-5xl">The Chronicle</h1>
-          <p className="mt-6 text-zinc-200/70">
-            The Chronicle is temporarily unavailable. Return soon.
-          </p>
+          <p className="mt-6 text-zinc-200/70">The Chronicle is temporarily unavailable. Return soon.</p>
           <Link
             href="/"
             className="mt-10 inline-flex rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-6 py-3 text-sm hover:bg-zinc-50/10"
@@ -70,17 +66,12 @@ export default async function ChroniclePage() {
         <div className="mt-12 rounded-3xl border border-zinc-200/10 bg-zinc-50/5 p-6 backdrop-blur">
           <div className="flex items-baseline justify-between gap-4">
             <h2 className="font-display text-2xl">Season I — The Alignment</h2>
-            <span className="text-xs tracking-[0.22em] text-zinc-200/60">
-              {pct}% TOWARD FRACTURE
-            </span>
+            <span className="text-xs tracking-[0.22em] text-zinc-200/60">{pct}% TOWARD FRACTURE</span>
           </div>
 
           <div className="mt-6">
             <div className="h-2 w-full rounded-full bg-zinc-200/10">
-              <div
-                className="h-2 rounded-full bg-zinc-200/30"
-                style={{ width: `${pct}%` }}
-              />
+              <div className="h-2 rounded-full bg-zinc-200/30" style={{ width: `${pct}%` }} />
             </div>
 
             <div className="mt-5 grid gap-2 text-sm text-zinc-200/70 md:grid-cols-2">
@@ -92,26 +83,59 @@ export default async function ChroniclePage() {
           </div>
         </div>
 
-        {/* CANON (READ-ONLY) */}
+        {/* Live Stats */}
+        <div className="mt-10 rounded-3xl border border-zinc-200/10 bg-zinc-50/5 p-6 backdrop-blur">
+          <p className="text-xs tracking-[0.22em] text-zinc-200/60">THE HEARTBEAT</p>
+
+          {!stats ? (
+            <p className="mt-4 text-sm text-zinc-200/70">Stats are waking. Return soon.</p>
+          ) : (
+            <>
+              <div className="mt-5 grid gap-3 text-sm text-zinc-200/70 md:grid-cols-2">
+                <Row k="Aligned wallets" v={String(stats.totals.alignedWallets)} />
+                <Row k="Flame" v={String(stats.counts.Flame)} />
+                <Row k="Veil" v={String(stats.counts.Veil)} />
+                <Row k="Echo" v={String(stats.counts.Echo)} />
+              </div>
+
+              <div className="mt-6 rounded-2xl border border-zinc-200/10 bg-zinc-950/30 p-4">
+                <p className="text-xs tracking-[0.22em] text-zinc-200/60">LAST MOVEMENT</p>
+                <div className="mt-3 space-y-2 text-sm text-zinc-200/70">
+                  <Row
+                    k="FactionChosen block"
+                    v={stats.lastActivity.factionChosen.blockNumber ? String(stats.lastActivity.factionChosen.blockNumber) : "—"}
+                  />
+                  {stats.lastActivity.factionChosen.txHash && (
+                    <a
+                      className="text-xs underline underline-offset-4 text-zinc-200/70"
+                      href={`https://basescan.org/tx/${stats.lastActivity.factionChosen.txHash}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      View last FactionChosen tx →
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              <p className="mt-4 text-xs text-zinc-200/50">
+                Stats range: {stats.range.fromBlock} → {stats.range.toBlock} • Snapshot:{" "}
+                {new Date(stats.generatedAt).toLocaleString()}
+              </p>
+            </>
+          )}
+        </div>
+
+        {/* Canon read-only contract state */}
         <div className="mt-10 rounded-3xl border border-zinc-200/10 bg-zinc-50/5 p-6 backdrop-blur">
           <p className="text-xs tracking-[0.22em] text-zinc-200/60">CANON (READ-ONLY)</p>
 
           <div className="mt-5 space-y-3 text-sm text-zinc-200/70">
-            <Row
-              k="ElyndraCommitment.registry"
-              v={String(data.onchain.elyndraCommitment.registry ?? "—")}
-              mono
-            />
-            <Row
-              k="ElyndraCommitment.isLocked"
-              v={String(data.onchain.elyndraCommitment.isLocked ?? "—")}
-            />
+            <Row k="ElyndraCommitment.registry" v={String(data.onchain.elyndraCommitment.registry ?? "—")} mono />
+            <Row k="ElyndraCommitment.isLocked" v={String(data.onchain.elyndraCommitment.isLocked ?? "—")} />
             <Row k="SAGA_ID" v={String(data.onchain.elyndraCommitment.SAGA_ID ?? "—")} />
             <Row k="SEASON_ID" v={String(data.onchain.elyndraCommitment.SEASON_ID ?? "—")} />
-            <Row
-              k="SEASON_END_BLOCK (onchain)"
-              v={String(data.onchain.elyndraCommitment.SEASON_END_BLOCK ?? "—")}
-            />
+            <Row k="SEASON_END_BLOCK (onchain)" v={String(data.onchain.elyndraCommitment.SEASON_END_BLOCK ?? "—")} />
           </div>
 
           <p className="mt-6 text-sm leading-7 text-zinc-200/65">
@@ -123,7 +147,6 @@ export default async function ChroniclePage() {
           </p>
         </div>
 
-        {/* Next */}
         <div className="mt-12 flex flex-col items-start gap-3">
           <Link
             href="/reflect"
@@ -156,9 +179,7 @@ function Row({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-6">
       <span className="text-zinc-200/55">{k}</span>
-      <span className={mono ? "font-mono text-xs text-zinc-100/90" : "text-zinc-100/90"}>
-        {v}
-      </span>
+      <span className={mono ? "font-mono text-xs text-zinc-100/90" : "text-zinc-100/90"}>{v}</span>
     </div>
   );
 }
