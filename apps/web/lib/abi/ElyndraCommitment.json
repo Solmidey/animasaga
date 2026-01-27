@@ -1,0 +1,205 @@
+[
+	{
+		"inputs": [
+			{
+				"internalType": "enum ElyndraCommitment.Faction",
+				"name": "faction",
+				"type": "uint8"
+			}
+		],
+		"name": "chooseFaction",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "registryAddress",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "seasonEndBlock",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "nonpayable",
+		"type": "constructor"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "sagaId",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "seasonId",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "bytes32",
+				"name": "commitmentHash",
+				"type": "bytes32"
+			}
+		],
+		"name": "Committed",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "enum ElyndraCommitment.Faction",
+				"name": "faction",
+				"type": "uint8"
+			}
+		],
+		"name": "FactionChosen",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "commitments",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "sagaId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "seasonId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "bytes32",
+				"name": "commitmentHash",
+				"type": "bytes32"
+			},
+			{
+				"internalType": "uint256",
+				"name": "blockNumber",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "factionOf",
+		"outputs": [
+			{
+				"internalType": "enum ElyndraCommitment.Faction",
+				"name": "",
+				"type": "uint8"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "hasChosen",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "registry",
+		"outputs": [
+			{
+				"internalType": "contract SagaRegistry",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "SAGA_ID",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "SEASON_END_BLOCK",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "SEASON_ID",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	}
+]
