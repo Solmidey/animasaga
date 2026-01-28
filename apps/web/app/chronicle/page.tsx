@@ -1,7 +1,11 @@
+// apps/web/app/chronicle/page.tsx
 import Link from "next/link";
 import { getChronicleSnapshot } from "@/lib/base-reader";
 import { getElyndraStats } from "@/lib/stats-reader";
 import HeartbeatLive from "@/components/HeartbeatLive";
+import MilestoneLadder from "@/components/MilestoneLadder";
+import RallyPack from "@/components/RallyPack";
+import WitnessWall from "@/components/WitnessWall";
 import { buildDailyLoreDrop } from "@/lib/lore-drop";
 
 export const revalidate = 10;
@@ -60,6 +64,7 @@ export default async function ChroniclePage() {
   const eclipseActive = stats?.eclipse?.isActive ?? false;
   const eclipseMilestone = stats?.eclipse?.milestone ?? null;
   const nextMilestone = stats?.eclipse?.nextMilestone ?? 10;
+  const athensDateKey = stats?.eclipse?.athensDateKey ?? null;
 
   const lore = buildDailyLoreDrop({
     alignedWallets,
@@ -73,6 +78,8 @@ export default async function ChroniclePage() {
 
   const pct = Math.round(data.season.progress * 100);
   const remaining = formatDuration(data.season.estimatedTimeRemainingSeconds);
+
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? null;
 
   return (
     <main className="min-h-screen bg-[radial-gradient(70%_50%_at_50%_0%,rgba(255,255,255,0.06),transparent_60%),linear-gradient(to_bottom,rgba(255,255,255,0.02),transparent_20%,rgba(0,0,0,0.15))] text-zinc-100">
@@ -102,11 +109,7 @@ export default async function ChroniclePage() {
               <h2 className="mt-3 font-display text-2xl md:text-3xl">{lore.title}</h2>
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span
-                  className={`inline-flex rounded-full border px-3 py-1 text-[11px] tracking-[0.22em] ${badgeClasses(
-                    lore.variant
-                  )}`}
-                >
+                <span className={`inline-flex rounded-full border px-3 py-1 text-[11px] tracking-[0.22em] ${badgeClasses(lore.variant)}`}>
                   {lore.variant === "eclipse" ? "ECLIPSE EVENT" : "OMEN"}
                 </span>
 
@@ -156,6 +159,34 @@ export default async function ChroniclePage() {
           </div>
         </div>
 
+        {/* Milestone Ladder */}
+        <div className="mt-10">
+          <MilestoneLadder
+            alignedWallets={alignedWallets}
+            eclipseActive={eclipseActive}
+            eclipseMilestone={eclipseMilestone}
+            nextMilestone={nextMilestone}
+            athensDateKey={athensDateKey}
+          />
+        </div>
+
+        {/* A) RALLY PACK */}
+        <div className="mt-10">
+          <RallyPack
+            alignedWallets={alignedWallets}
+            eclipseActive={eclipseActive}
+            eclipseMilestone={eclipseMilestone}
+            nextMilestone={nextMilestone}
+            athensDateKey={athensDateKey}
+            baseUrl={baseUrl}
+          />
+        </div>
+
+        {/* B) WALL OF WITNESS */}
+        <div className="mt-10">
+          <WitnessWall />
+        </div>
+
         {/* Season Progress */}
         <div className="mt-12 rounded-3xl border border-zinc-200/10 bg-zinc-50/5 p-6 backdrop-blur">
           <div className="flex items-baseline justify-between gap-4">
@@ -183,29 +214,14 @@ export default async function ChroniclePage() {
           <HeartbeatLive initial={stats as any} />
         </div>
 
-        {/* Links */}
         <div className="mt-12 flex flex-col items-start gap-3">
-          <Link
-            href="/reflect"
-            className="inline-flex rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-6 py-3 text-sm hover:bg-zinc-50/10"
-          >
-            View Reflection →
-          </Link>
-          <p className="text-xs leading-6 text-zinc-200/55">
-            The Mirror shows what Elyndra has recorded under your wallet.
-          </p>
-        </div>
-
-        <div className="mt-6 flex flex-col items-start gap-3">
           <Link
             href="/align"
             className="inline-flex rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-6 py-3 text-sm hover:bg-zinc-50/10"
           >
             Proceed to Alignment →
           </Link>
-          <p className="text-xs leading-6 text-zinc-200/55">
-            Wallet is required beyond this door. Choices become binding.
-          </p>
+          <p className="text-xs leading-6 text-zinc-200/55">Wallet is required beyond this door. Choices become binding.</p>
         </div>
       </div>
     </main>

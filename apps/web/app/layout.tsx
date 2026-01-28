@@ -1,7 +1,7 @@
 // apps/web/app/layout.tsx
 import type { Metadata } from "next";
 import "./globals.css";
-import { Providers } from "./providers";
+import Providers from "./providers";
 import SoundToggle from "@/components/SoundToggle";
 import { Cinzel, Inter } from "next/font/google";
 
