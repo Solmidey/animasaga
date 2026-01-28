@@ -9,10 +9,13 @@ function shortAddr(addr: string) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
-function seedFromHex(hex: string) {
-  let s = 0;
-  for (let i = 0; i < hex.length; i++) s = (s * 31 + hex.charCodeAt(i)) >>> 0;
-  return s >>> 0;
+function seedFromString(s: string) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
 }
 
 function lcg(seed: number) {
@@ -56,6 +59,54 @@ function wrapText(
   ctx.fillText(line.trim(), x, y);
 }
 
+function drawEclipseRing(ctx: CanvasRenderingContext2D, cx: number, cy: number, baseR: number) {
+  ctx.save();
+  ctx.globalAlpha = 0.18;
+  ctx.strokeStyle = "rgba(255,255,255,0.9)";
+  ctx.lineWidth = 10;
+  ctx.shadowColor = "rgba(255,255,255,0.30)";
+  ctx.shadowBlur = 22;
+  ctx.beginPath();
+  ctx.arc(cx, cy, baseR, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = 0.22;
+  ctx.strokeStyle = "rgba(255,255,255,0.9)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, baseR, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalCompositeOperation = "destination-out";
+  ctx.fillStyle = "rgba(0,0,0,1)";
+  ctx.beginPath();
+  ctx.arc(cx + baseR * 0.24, cy - baseR * 0.10, baseR * 0.92, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = 0.16;
+  ctx.strokeStyle = "rgba(255,255,255,0.95)";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(cx - baseR * 0.10, cy + baseR * 0.05, baseR * 0.98, -0.15, 1.2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+type EclipsePayload = {
+  eclipse: {
+    isActive: boolean;
+    milestone: number | null;
+    nextMilestone: number;
+    athensDateKey: string;
+  };
+};
+
 export default function AlignmentSigilCard(props: {
   address: string;
   faction: FactionName;
@@ -68,6 +119,31 @@ export default function AlignmentSigilCard(props: {
   const [ready, setReady] = useState(false);
   const [copied, setCopied] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
+
+  const [eclipseActive, setEclipseActive] = useState(false);
+  const [eclipseMilestone, setEclipseMilestone] = useState<number | null>(null);
+  const [athensDateKey, setAthensDateKey] = useState<string>("");
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/eclipse", { cache: "no-store" });
+        const json = (await res.json()) as EclipsePayload;
+        if (!alive) return;
+        if (res.ok) {
+          setEclipseActive(Boolean(json?.eclipse?.isActive));
+          setEclipseMilestone(json?.eclipse?.milestone ?? null);
+          setAthensDateKey(json?.eclipse?.athensDateKey ?? "");
+        }
+      } catch {
+        // silent
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const title = useMemo(() => {
     if (props.faction === "Flame") return "Bearer of Flame";
@@ -92,15 +168,20 @@ export default function AlignmentSigilCard(props: {
 
   const filename = useMemo(() => {
     const f = props.faction.toLowerCase();
-    return `animasaga-${f}-season-${props.seasonId}.png`;
-  }, [props.faction, props.seasonId]);
+    const tag = eclipseActive ? "eclipse" : "standard";
+    return `animasaga-${f}-season-${props.seasonId}-${tag}.png`;
+  }, [props.faction, props.seasonId, eclipseActive]);
 
   const shareText = useMemo(() => {
     const base = `I aligned with ${title} in Elyndra — Season ${props.seasonId}.`;
     const w = `Wallet: ${shortAddr(props.address)}.`;
+    const special =
+      eclipseActive && eclipseMilestone
+        ? `Eclipse Event: milestone ${eclipseMilestone} reached (${athensDateKey}).`
+        : "";
     const url = props.siteUrl ? `\n${props.siteUrl}` : "";
-    return `${base}\n${w}${url}`;
-  }, [title, props.seasonId, props.address, props.siteUrl]);
+    return `${base}\n${w}${special ? `\n${special}` : ""}${url}`;
+  }, [title, props.seasonId, props.address, props.siteUrl, eclipseActive, eclipseMilestone, athensDateKey]);
 
   const shareX = () => {
     const text = encodeURIComponent(shareText);
@@ -117,9 +198,7 @@ export default function AlignmentSigilCard(props: {
       await navigator.clipboard.writeText(shareText);
       setCopied(true);
       setTimeout(() => setCopied(false), 1400);
-    } catch {
-      // silent
-    }
+    } catch {}
   };
 
   const draw = async () => {
@@ -166,8 +245,8 @@ export default function AlignmentSigilCard(props: {
       ctx.restore();
     }
 
-    const seed = seedFromHex(props.address + (props.commitmentHash ?? ""));
-    const rnd = lcg(seed);
+    const crackSeed = seedFromString(`${props.address}|${props.commitmentHash ?? ""}`);
+    const rnd = lcg(crackSeed);
 
     ctx.strokeStyle = "rgba(255,255,255,0.10)";
     ctx.lineWidth = 2;
@@ -201,9 +280,11 @@ export default function AlignmentSigilCard(props: {
     const cx = W * 0.73;
     const cy = H * 0.33;
 
+    if (eclipseActive) drawEclipseRing(ctx, cx, cy, 165);
+
     if (sigilImg) {
       ctx.save();
-      ctx.globalAlpha = 0.22;
+      ctx.globalAlpha = eclipseActive ? 0.26 : 0.22;
       const size = 360;
       ctx.drawImage(sigilImg, cx - size / 2, cy - size / 2, size, size);
       ctx.restore();
@@ -211,7 +292,7 @@ export default function AlignmentSigilCard(props: {
 
     if (frameImg) {
       ctx.save();
-      ctx.globalAlpha = 0.18;
+      ctx.globalAlpha = eclipseActive ? 0.22 : 0.18;
       ctx.drawImage(frameImg, 0, 0, W, H);
       ctx.restore();
     }
@@ -273,11 +354,23 @@ export default function AlignmentSigilCard(props: {
     setDownloaded(true);
   };
 
+  const posted = () => {
+    localStorage.setItem("animasaga_posted_v1", new Date().toISOString());
+    window.open("/chronicle#heartbeat", "_blank", "noopener,noreferrer");
+  };
+
   if (!ready) return null;
 
   return (
     <div className="mt-10 rounded-3xl border border-zinc-200/10 bg-zinc-50/5 p-6 backdrop-blur">
-      <p className="text-xs tracking-[0.22em] text-zinc-200/60">SIGIL (SHAREABLE)</p>
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-xs tracking-[0.22em] text-zinc-200/60">SIGIL (SHAREABLE)</p>
+        {eclipseActive && eclipseMilestone && (
+          <span className="inline-flex rounded-full border border-zinc-200/25 bg-zinc-50/10 px-3 py-1 text-[11px] tracking-[0.22em] text-zinc-100/90">
+            ECLIPSE • {eclipseMilestone}
+          </span>
+        )}
+      </div>
 
       <div className="mt-5 grid gap-6 md:grid-cols-2 md:items-start">
         <div className="rounded-2xl border border-zinc-200/10 bg-black/40 p-3">
@@ -289,7 +382,6 @@ export default function AlignmentSigilCard(props: {
             Export your sigil as a PNG, then post it. The Chronicle grows by witness.
           </p>
 
-          {/* Primary actions */}
           <div className="flex flex-wrap gap-2">
             <button
               onClick={download}
@@ -318,25 +410,24 @@ export default function AlignmentSigilCard(props: {
             >
               Open Farcaster →
             </button>
+
+            <button
+              onClick={posted}
+              className="inline-flex items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-5 py-2 text-sm hover:bg-zinc-50/10"
+            >
+              I posted it — show me the heartbeat →
+            </button>
           </div>
 
-          {/* Guided helper (ultimate growth) */}
           <div className="rounded-2xl border border-zinc-200/10 bg-zinc-950/30 p-4">
             <p className="text-xs tracking-[0.22em] text-zinc-200/60">POST THIS SIGIL</p>
 
             <ol className="mt-3 space-y-2 text-sm text-zinc-200/70 list-decimal pl-5">
-              <li>
-                Click <span className="text-zinc-100/90">Download PNG</span> (you’ll attach it to your post).
-              </li>
-              <li>
-                Click <span className="text-zinc-100/90">Copy share text</span>.
-              </li>
-              <li>
-                Click <span className="text-zinc-100/90">Open X Composer</span> or{" "}
-                <span className="text-zinc-100/90">Open Farcaster</span>.
-              </li>
-              <li>Paste the text, then attach the PNG you downloaded.</li>
-              <li>Post. The heartbeat changes.</li>
+              <li>Download PNG.</li>
+              <li>Copy share text.</li>
+              <li>Open X or Farcaster composer.</li>
+              <li>Paste text, attach PNG, post.</li>
+              <li>Click “I posted it” and watch the heartbeat.</li>
             </ol>
 
             <label className="mt-4 flex items-start gap-3 text-xs text-zinc-200/65">
@@ -351,7 +442,9 @@ export default function AlignmentSigilCard(props: {
           </div>
 
           <p className="text-xs text-zinc-200/55">
-            Pro tip: posts with an image travel farther. Elyndra rewards witnesses.
+            {eclipseActive
+              ? "Eclipse Event is active today. Sigils carry the lunar mark."
+              : "Posts with an image travel farther. Elyndra rewards witnesses."}
           </p>
         </div>
       </div>

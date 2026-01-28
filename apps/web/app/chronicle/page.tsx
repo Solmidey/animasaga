@@ -1,7 +1,8 @@
-// apps/web/app/chronicle/page.tsx
 import Link from "next/link";
 import { getChronicleSnapshot } from "@/lib/base-reader";
 import { getElyndraStats } from "@/lib/stats-reader";
+import HeartbeatLive from "@/components/HeartbeatLive";
+import { buildDailyLoreDrop } from "@/lib/lore-drop";
 
 export const revalidate = 10;
 
@@ -13,6 +14,18 @@ function formatDuration(seconds: number) {
   if (d > 0) return `${d}d ${h}h`;
   if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
+}
+
+function loreShellClasses(variant: "normal" | "eclipse") {
+  if (variant === "eclipse") {
+    return "border-zinc-200/20 bg-[radial-gradient(90%_60%_at_50%_0%,rgba(255,255,255,0.10),transparent_55%),linear-gradient(to_bottom,rgba(255,255,255,0.05),rgba(0,0,0,0.1))]";
+  }
+  return "border-zinc-200/10 bg-zinc-50/5";
+}
+
+function badgeClasses(variant: "normal" | "eclipse") {
+  if (variant === "eclipse") return "border-zinc-200/25 bg-zinc-50/10 text-zinc-100/90";
+  return "border-zinc-200/10 bg-zinc-50/5 text-zinc-100/80";
 }
 
 export default async function ChroniclePage() {
@@ -39,6 +52,25 @@ export default async function ChroniclePage() {
     );
   }
 
+  const flame = stats?.counts?.Flame ?? 0;
+  const veil = stats?.counts?.Veil ?? 0;
+  const echo = stats?.counts?.Echo ?? 0;
+  const alignedWallets = stats?.totals?.alignedWallets ?? 0;
+
+  const eclipseActive = stats?.eclipse?.isActive ?? false;
+  const eclipseMilestone = stats?.eclipse?.milestone ?? null;
+  const nextMilestone = stats?.eclipse?.nextMilestone ?? 10;
+
+  const lore = buildDailyLoreDrop({
+    alignedWallets,
+    flame,
+    veil,
+    echo,
+    eclipseActive,
+    eclipseMilestone,
+    nextMilestone,
+  });
+
   const pct = Math.round(data.season.progress * 100);
   const remaining = formatDuration(data.season.estimatedTimeRemainingSeconds);
 
@@ -62,7 +94,69 @@ export default async function ChroniclePage() {
           </Link>
         </div>
 
-        {/* Season Progress — The Crack */}
+        {/* DAILY LORE DROP */}
+        <div className={`mt-10 rounded-3xl border p-7 backdrop-blur ${loreShellClasses(lore.variant)}`}>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs tracking-[0.28em] text-zinc-200/60">DAILY LORE DROP</p>
+              <h2 className="mt-3 font-display text-2xl md:text-3xl">{lore.title}</h2>
+
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span
+                  className={`inline-flex rounded-full border px-3 py-1 text-[11px] tracking-[0.22em] ${badgeClasses(
+                    lore.variant
+                  )}`}
+                >
+                  {lore.variant === "eclipse" ? "ECLIPSE EVENT" : "OMEN"}
+                </span>
+
+                <span className="inline-flex rounded-full border border-zinc-200/10 bg-zinc-50/5 px-3 py-1 text-[11px] tracking-[0.22em] text-zinc-100/80">
+                  LEADING: {lore.meta.leadingFaction}
+                </span>
+
+                {!lore.meta.eclipseActive && (
+                  <span className="inline-flex rounded-full border border-zinc-200/10 bg-zinc-50/5 px-3 py-1 text-[11px] tracking-[0.22em] text-zinc-100/80">
+                    NEXT: {lore.meta.nextMilestone}
+                  </span>
+                )}
+
+                {lore.meta.eclipseActive && lore.meta.eclipseMilestone && (
+                  <span className="inline-flex rounded-full border border-zinc-200/25 bg-zinc-50/10 px-3 py-1 text-[11px] tracking-[0.22em] text-zinc-100/90">
+                    MILESTONE: {lore.meta.eclipseMilestone}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="text-xs text-zinc-200/55 text-right">
+              <span className="tracking-[0.22em]">ATHENS</span>
+              <div className="mt-1 font-mono">{lore.dateKey}</div>
+            </div>
+          </div>
+
+          <div className="mt-6 space-y-4 text-sm leading-7 text-zinc-200/75 md:text-base">
+            {lore.omen.map((line, i) => (
+              <p key={i}>{line}</p>
+            ))}
+          </div>
+
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-zinc-200/55">
+              <span className="text-zinc-200/65">{lore.meta.alignedWallets} aligned</span>
+              <span className="text-zinc-200/45"> • </span>
+              <span className="text-zinc-200/65">{lore.meta.shareLine}</span>
+            </p>
+
+            <Link
+              href="#heartbeat"
+              className="inline-flex w-fit items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-5 py-2 text-xs hover:bg-zinc-50/10"
+            >
+              Watch the Heartbeat →
+            </Link>
+          </div>
+        </div>
+
+        {/* Season Progress */}
         <div className="mt-12 rounded-3xl border border-zinc-200/10 bg-zinc-50/5 p-6 backdrop-blur">
           <div className="flex items-baseline justify-between gap-4">
             <h2 className="font-display text-2xl">Season I — The Alignment</h2>
@@ -83,70 +177,13 @@ export default async function ChroniclePage() {
           </div>
         </div>
 
-        {/* Live Stats */}
-        <div className="mt-10 rounded-3xl border border-zinc-200/10 bg-zinc-50/5 p-6 backdrop-blur">
+        {/* Heartbeat */}
+        <div className="mt-10 rounded-3xl border border-zinc-200/10 bg-zinc-50/5 p-6 backdrop-blur" id="heartbeat">
           <p className="text-xs tracking-[0.22em] text-zinc-200/60">THE HEARTBEAT</p>
-
-          {!stats ? (
-            <p className="mt-4 text-sm text-zinc-200/70">Stats are waking. Return soon.</p>
-          ) : (
-            <>
-              <div className="mt-5 grid gap-3 text-sm text-zinc-200/70 md:grid-cols-2">
-                <Row k="Aligned wallets" v={String(stats.totals.alignedWallets)} />
-                <Row k="Flame" v={String(stats.counts.Flame)} />
-                <Row k="Veil" v={String(stats.counts.Veil)} />
-                <Row k="Echo" v={String(stats.counts.Echo)} />
-              </div>
-
-              <div className="mt-6 rounded-2xl border border-zinc-200/10 bg-zinc-950/30 p-4">
-                <p className="text-xs tracking-[0.22em] text-zinc-200/60">LAST MOVEMENT</p>
-                <div className="mt-3 space-y-2 text-sm text-zinc-200/70">
-                  <Row
-                    k="FactionChosen block"
-                    v={stats.lastActivity.factionChosen.blockNumber ? String(stats.lastActivity.factionChosen.blockNumber) : "—"}
-                  />
-                  {stats.lastActivity.factionChosen.txHash && (
-                    <a
-                      className="text-xs underline underline-offset-4 text-zinc-200/70"
-                      href={`https://basescan.org/tx/${stats.lastActivity.factionChosen.txHash}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      View last FactionChosen tx →
-                    </a>
-                  )}
-                </div>
-              </div>
-
-              <p className="mt-4 text-xs text-zinc-200/50">
-                Stats range: {stats.range.fromBlock} → {stats.range.toBlock} • Snapshot:{" "}
-                {new Date(stats.generatedAt).toLocaleString()}
-              </p>
-            </>
-          )}
+          <HeartbeatLive initial={stats as any} />
         </div>
 
-        {/* Canon read-only contract state */}
-        <div className="mt-10 rounded-3xl border border-zinc-200/10 bg-zinc-50/5 p-6 backdrop-blur">
-          <p className="text-xs tracking-[0.22em] text-zinc-200/60">CANON (READ-ONLY)</p>
-
-          <div className="mt-5 space-y-3 text-sm text-zinc-200/70">
-            <Row k="ElyndraCommitment.registry" v={String(data.onchain.elyndraCommitment.registry ?? "—")} mono />
-            <Row k="ElyndraCommitment.isLocked" v={String(data.onchain.elyndraCommitment.isLocked ?? "—")} />
-            <Row k="SAGA_ID" v={String(data.onchain.elyndraCommitment.SAGA_ID ?? "—")} />
-            <Row k="SEASON_ID" v={String(data.onchain.elyndraCommitment.SEASON_ID ?? "—")} />
-            <Row k="SEASON_END_BLOCK (onchain)" v={String(data.onchain.elyndraCommitment.SEASON_END_BLOCK ?? "—")} />
-          </div>
-
-          <p className="mt-6 text-sm leading-7 text-zinc-200/65">
-            Network truth is read here. No client-side authority. No reversible state.
-          </p>
-
-          <p className="mt-4 text-xs text-zinc-200/50">
-            Snapshot: {new Date(data.generatedAt).toLocaleString()}
-          </p>
-        </div>
-
+        {/* Links */}
         <div className="mt-12 flex flex-col items-start gap-3">
           <Link
             href="/reflect"

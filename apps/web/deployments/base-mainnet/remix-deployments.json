@@ -1,0 +1,38 @@
+{
+  "network": "base-mainnet",
+  "chainId": 8453,
+  "deployedAt": "2026-01-26",
+  "deployer": "0x6805d8363D65F05B701F5936928C806C7580FED8",
+  "compiler": {
+    "version": "0.8.20",
+    "optimizer": {
+      "enabled": true,
+      "runs": 200
+    }
+  },
+  "contracts": {
+    "SagaRegistry": {
+      "address": "0xE5b05DA1C3A1cDF9438187c9C3f9621C5DDD325A",
+      "deploymentTx": "0x5d74e6360152c86f744609ff7b8c661468486bac0a3a99d4528f2b76932493ff",
+      "deploymentBlock": 41338131,
+      "constructorArgs": [],
+      "season": {
+        "seasonId": 1,
+        "seasonEndBlock": 41938131
+      }
+    },
+    "ElyndraCommitment": {
+      "address": "0x2355451edBEE92138AB06231ED2b391089E9d4d1",
+      "deploymentTx": "0x756b15c5c30fa3af98836ce09d184af0a4b7210bdce2ff696a01a9e45327020a",
+      "deploymentBlock": "UNKNOWN",
+      "constructorArgs": [
+        "0xE5b05DA1C3A1cDF9438187c9C3f9621C5DDD325A",
+        41938131
+      ],
+      "bindsTo": {
+        "registry": "SagaRegistry",
+        "seasonId": 1
+      }
+    }
+  }
+}
