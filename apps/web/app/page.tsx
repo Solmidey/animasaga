@@ -3,6 +3,7 @@ import Link from "next/link";
 import HeartbeatTeaser from "@/components/HeartbeatTeaser";
 import EclipseTeaser from "@/components/EclipseTeaser";
 import RallyPack from "@/components/RallyPack";
+import OathOverlay from "@/components/OathOverlay";
 import { getElyndraStats } from "@/lib/stats-reader";
 import { buildDailyLoreDrop } from "@/lib/lore-drop";
 
@@ -43,7 +44,8 @@ export default async function Page() {
     nextMilestone,
   });
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? null;
+  // Stable absolute base URL for RallyPack (SSR-safe)
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
   return (
     <main className="min-h-screen bg-[radial-gradient(70%_50%_at_50%_0%,rgba(255,255,255,0.06),transparent_60%),linear-gradient(to_bottom,rgba(255,255,255,0.02),transparent_20%,rgba(0,0,0,0.15))] text-zinc-100">
@@ -69,25 +71,55 @@ export default async function Page() {
           </p>
 
           <div className="mt-10 space-y-2">
-            <p className="font-display text-2xl text-zinc-100/95 md:text-3xl">Elyndra remembers.</p>
+            <p className="font-display text-2xl text-zinc-100/95 md:text-3xl">
+              Elyndra remembers.
+            </p>
             <p className="text-sm leading-7 text-zinc-200/70 md:text-base">
-              Every alignment leaves a scar.<br />Every scar becomes history.
+              Every alignment leaves a scar.
+              <br />
+              Every scar becomes history.
             </p>
           </div>
 
-          <div className="mt-14 flex flex-col gap-3">
+          {/* PRIMARY CTA + REFLECTION LINK */}
+          <div className="mt-14 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <Link
               href="/chronicle"
               className="group inline-flex w-fit items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-6 py-3 text-sm font-medium text-zinc-100 shadow-[0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur transition hover:bg-zinc-50/10 hover:border-zinc-200/20"
             >
               Enter Elyndra
-              <span className="ml-2 inline-block transition group-hover:translate-x-0.5">→</span>
+              <span className="ml-2 inline-block transition group-hover:translate-x-0.5">
+                →
+              </span>
             </Link>
 
-            <p className="text-xs leading-5 text-zinc-200/60">
-              Wallet connection required beyond this point.<br />Choices made there are binding.
-            </p>
+            <Link
+              href="/reflect"
+              className="inline-flex w-fit items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-6 py-3 text-sm text-zinc-100/90 hover:bg-zinc-50/10 hover:border-zinc-200/20"
+            >
+              Reflection →
+            </Link>
+
+            <Link
+              href="/align"
+              className="inline-flex w-fit items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-6 py-3 text-sm text-zinc-100/90 hover:bg-zinc-50/10 hover:border-zinc-200/20"
+            >
+              Align →
+            </Link>
+
+            <Link
+              href="/mini"
+              className="inline-flex w-fit items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-6 py-3 text-sm text-zinc-100/90 hover:bg-zinc-50/10 hover:border-zinc-200/20"
+            >
+              Mini →
+            </Link>
           </div>
+
+          <p className="mt-3 text-xs leading-5 text-zinc-200/60">
+            Wallet connection required beyond this point.
+            <br />
+            Choices made there are binding.
+          </p>
         </section>
 
         {/* DAILY LORE DROP */}
@@ -99,7 +131,11 @@ export default async function Page() {
                 <h2 className="mt-3 font-display text-2xl md:text-3xl">{lore.title}</h2>
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <span className={`inline-flex rounded-full border px-3 py-1 text-[11px] tracking-[0.22em] ${badgeClasses(lore.variant)}`}>
+                  <span
+                    className={`inline-flex rounded-full border px-3 py-1 text-[11px] tracking-[0.22em] ${badgeClasses(
+                      lore.variant
+                    )}`}
+                  >
                     {lore.variant === "eclipse" ? "ECLIPSE EVENT" : "OMEN"}
                   </span>
 
@@ -140,17 +176,31 @@ export default async function Page() {
                 <span className="text-zinc-200/65">{lore.meta.shareLine}</span>
               </p>
 
-              <Link
-                href="/chronicle#heartbeat"
-                className="inline-flex w-fit items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-5 py-2 text-xs hover:bg-zinc-50/10"
-              >
-                Watch the Heartbeat →
-              </Link>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href="/chronicle#heartbeat"
+                  className="inline-flex w-fit items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-5 py-2 text-xs hover:bg-zinc-50/10"
+                >
+                  Watch the Heartbeat →
+                </Link>
+                <Link
+                  href="/reflect"
+                  className="inline-flex w-fit items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-5 py-2 text-xs hover:bg-zinc-50/10"
+                >
+                  Reflection →
+                </Link>
+                <Link
+                  href="/mini"
+                  className="inline-flex w-fit items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-5 py-2 text-xs hover:bg-zinc-50/10"
+                >
+                  Mini →
+                </Link>
+              </div>
             </div>
           </div>
         </section>
 
-        {/* A) RALLY PACK on homepage (smaller but deadly) */}
+        {/* RALLY PACK */}
         <section className="mt-10">
           <RallyPack
             alignedWallets={alignedWallets}
@@ -171,7 +221,8 @@ export default async function Page() {
               Where the Chain does not forgive — it records.
             </p>
             <p>
-              In Elyndra, you do not role-play a character. You reveal what you are willing to stand behind.
+              In Elyndra, you do not role-play a character. You reveal what you are willing
+              to stand behind.
             </p>
           </div>
         </section>
@@ -179,7 +230,10 @@ export default async function Page() {
         <section className="mt-20 md:mt-24">
           <h2 className="font-display text-2xl md:text-3xl">There was a fracture.</h2>
           <div className="mt-6 space-y-5 text-sm leading-7 text-zinc-200/75 md:text-base">
-            <p>Not of land —<br />but of intention.</p>
+            <p>
+              Not of land —<br />
+              but of intention.
+            </p>
             <p>From it emerged forces. Not gods. Not factions. Alignments.</p>
           </div>
 
@@ -199,6 +253,27 @@ export default async function Page() {
             >
               Enter Elyndra <span className="ml-2">→</span>
             </Link>
+
+            <div className="flex flex-wrap justify-center gap-2">
+              <Link
+                href="/reflect"
+                className="inline-flex items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-6 py-3 text-sm hover:bg-zinc-50/10"
+              >
+                Reflection →
+              </Link>
+              <Link
+                href="/align"
+                className="inline-flex items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-6 py-3 text-sm hover:bg-zinc-50/10"
+              >
+                Align →
+              </Link>
+              <Link
+                href="/mini"
+                className="inline-flex items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-6 py-3 text-sm hover:bg-zinc-50/10"
+              >
+                Mini →
+              </Link>
+            </div>
           </div>
         </section>
       </div>
@@ -213,6 +288,9 @@ export default async function Page() {
       />
 
       <HeartbeatTeaser flame={flame} veil={veil} echo={echo} alignedWallets={alignedWallets} />
+
+      {/* NEW: One-time Witness Oath Overlay (client-only; safe for hydration) */}
+      <OathOverlay />
     </main>
   );
 }

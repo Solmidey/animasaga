@@ -1,0 +1,9 @@
+{
+  "network": "base-mainnet",
+  "chainId": 8453,
+  "witnessRegistry": {
+    "address": "0x3cea345e4b0f41596879F568894c2a548605D472",
+    "deploymentBlock": 41479056,
+    "seasonId": 1
+  }
+}

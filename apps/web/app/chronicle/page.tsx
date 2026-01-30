@@ -6,6 +6,8 @@ import HeartbeatLive from "@/components/HeartbeatLive";
 import MilestoneLadder from "@/components/MilestoneLadder";
 import RallyPack from "@/components/RallyPack";
 import WitnessWall from "@/components/WitnessWall";
+import WitnessPulseBanner from "@/components/WitnessPulseBanner";
+import WitnessHeat from "@/components/WitnessHeat";
 import { buildDailyLoreDrop } from "@/lib/lore-drop";
 
 export const revalidate = 10;
@@ -45,12 +47,18 @@ export default async function ChroniclePage() {
           <p className="text-xs tracking-[0.28em] text-zinc-200/60">CHRONICLE</p>
           <h1 className="mt-4 font-display text-4xl md:text-5xl">The Chronicle</h1>
           <p className="mt-6 text-zinc-200/70">The Chronicle is temporarily unavailable. Return soon.</p>
-          <Link
-            href="/"
-            className="mt-10 inline-flex rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-6 py-3 text-sm hover:bg-zinc-50/10"
-          >
-            Back to Threshold →
-          </Link>
+
+          <div className="mt-10 flex flex-wrap gap-2">
+            <Link href="/" className="inline-flex rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-6 py-3 text-sm hover:bg-zinc-50/10">
+              Back to Threshold →
+            </Link>
+            <Link href="/reflect" className="inline-flex rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-6 py-3 text-sm hover:bg-zinc-50/10">
+              Reflection →
+            </Link>
+            <Link href="/align" className="inline-flex rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-6 py-3 text-sm hover:bg-zinc-50/10">
+              Align →
+            </Link>
+          </div>
         </div>
       </main>
     );
@@ -79,7 +87,7 @@ export default async function ChroniclePage() {
   const pct = Math.round(data.season.progress * 100);
   const remaining = formatDuration(data.season.estimatedTimeRemainingSeconds);
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? null;
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
   return (
     <main className="min-h-screen bg-[radial-gradient(70%_50%_at_50%_0%,rgba(255,255,255,0.06),transparent_60%),linear-gradient(to_bottom,rgba(255,255,255,0.02),transparent_20%,rgba(0,0,0,0.15))] text-zinc-100">
@@ -93,15 +101,21 @@ export default async function ChroniclePage() {
             </p>
           </div>
 
-          <Link
-            href="/"
-            className="inline-flex rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-4 py-2 text-sm text-zinc-100/90 hover:bg-zinc-50/10"
-          >
-            Threshold
-          </Link>
+          <div className="flex flex-col items-end gap-2">
+            <Link href="/" className="inline-flex rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-4 py-2 text-sm text-zinc-100/90 hover:bg-zinc-50/10">
+              Threshold
+            </Link>
+            <Link href="/reflect" className="inline-flex rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-4 py-2 text-sm text-zinc-100/90 hover:bg-zinc-50/10">
+              Reflection
+            </Link>
+            <Link href="/align" className="inline-flex rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-4 py-2 text-sm text-zinc-100/90 hover:bg-zinc-50/10">
+              Align
+            </Link>
+          </div>
         </div>
 
-        {/* DAILY LORE DROP */}
+        <WitnessPulseBanner />
+
         <div className={`mt-10 rounded-3xl border p-7 backdrop-blur ${loreShellClasses(lore.variant)}`}>
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -150,16 +164,17 @@ export default async function ChroniclePage() {
               <span className="text-zinc-200/65">{lore.meta.shareLine}</span>
             </p>
 
-            <Link
-              href="#heartbeat"
-              className="inline-flex w-fit items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-5 py-2 text-xs hover:bg-zinc-50/10"
-            >
-              Watch the Heartbeat →
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link href="#heartbeat" className="inline-flex w-fit items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-5 py-2 text-xs hover:bg-zinc-50/10">
+                Watch the Heartbeat →
+              </Link>
+              <Link href="/reflect" className="inline-flex w-fit items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-5 py-2 text-xs hover:bg-zinc-50/10">
+                Reflection →
+              </Link>
+            </div>
           </div>
         </div>
 
-        {/* Milestone Ladder */}
         <div className="mt-10">
           <MilestoneLadder
             alignedWallets={alignedWallets}
@@ -170,7 +185,6 @@ export default async function ChroniclePage() {
           />
         </div>
 
-        {/* A) RALLY PACK */}
         <div className="mt-10">
           <RallyPack
             alignedWallets={alignedWallets}
@@ -182,12 +196,15 @@ export default async function ChroniclePage() {
           />
         </div>
 
-        {/* B) WALL OF WITNESS */}
+        {/* NEW: WitnessHeat */}
+        <div className="mt-10">
+          <WitnessHeat />
+        </div>
+
         <div className="mt-10">
           <WitnessWall />
         </div>
 
-        {/* Season Progress */}
         <div className="mt-12 rounded-3xl border border-zinc-200/10 bg-zinc-50/5 p-6 backdrop-blur">
           <div className="flex items-baseline justify-between gap-4">
             <h2 className="font-display text-2xl">Season I — The Alignment</h2>
@@ -208,17 +225,13 @@ export default async function ChroniclePage() {
           </div>
         </div>
 
-        {/* Heartbeat */}
         <div className="mt-10 rounded-3xl border border-zinc-200/10 bg-zinc-50/5 p-6 backdrop-blur" id="heartbeat">
           <p className="text-xs tracking-[0.22em] text-zinc-200/60">THE HEARTBEAT</p>
           <HeartbeatLive initial={stats as any} />
         </div>
 
         <div className="mt-12 flex flex-col items-start gap-3">
-          <Link
-            href="/align"
-            className="inline-flex rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-6 py-3 text-sm hover:bg-zinc-50/10"
-          >
+          <Link href="/align" className="inline-flex rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-6 py-3 text-sm hover:bg-zinc-50/10">
             Proceed to Alignment →
           </Link>
           <p className="text-xs leading-6 text-zinc-200/55">Wallet is required beyond this door. Choices become binding.</p>

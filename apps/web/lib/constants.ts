@@ -2,7 +2,10 @@
 export const BASE_MAINNET = {
   chainId: 8453,
   // Server-side reads use BASE_RPC_URL; client reads use NEXT_PUBLIC_BASE_RPC_URL (set in .env.local)
-  rpcUrl: process.env.BASE_RPC_URL || process.env.NEXT_PUBLIC_BASE_RPC_URL || "https://base-rpc.publicnode.com",
+  rpcUrl:
+    process.env.BASE_RPC_URL ||
+    process.env.NEXT_PUBLIC_BASE_RPC_URL ||
+    "https://base-rpc.publicnode.com",
 } as const;
 
 export const DEPLOYMENTS = {
@@ -16,5 +19,15 @@ export const DEPLOYMENTS = {
     // If you don't know it yet, keep it equal to SagaRegistry deployment block for now
     deploymentBlock: 41338452,
   },
+
+  // ✅ NEW: WitnessRegistry (Onchain Witness)
+  WitnessRegistry: {
+    address:
+      (process.env.NEXT_PUBLIC_WITNESS_REGISTRY_ADDRESS ||
+        "0x3cea345e4b0f41596879F568894c2a548605D472") as `0x${string}`,
+    deploymentBlock: 41479056,
+  },
 } as const;
 
+// ✅ NEW: Season ID used for witness writes (client + server)
+export const WITNESS_SEASON_ID = Number(process.env.NEXT_PUBLIC_WITNESS_SEASON_ID ?? "1");

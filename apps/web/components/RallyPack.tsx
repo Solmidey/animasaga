@@ -3,37 +3,50 @@
 
 import { useMemo, useState } from "react";
 
+function normalizeBaseUrl(input: string | null | undefined) {
+  const raw = (input ?? "").trim();
+  if (raw.length === 0) return "http://localhost:3000";
+  return raw.replace(/\/+$/, "");
+}
+
 export default function RallyPack(props: {
   alignedWallets: number;
   eclipseActive: boolean;
   eclipseMilestone: number | null;
   nextMilestone: number;
   athensDateKey: string | null;
-  baseUrl?: string | null; // optional, falls back to window.origin
+  baseUrl?: string | null;
 }) {
   const [copied, setCopied] = useState(false);
 
-  const origin = useMemo(() => {
-    if (props.baseUrl && props.baseUrl.length > 0) return props.baseUrl;
-    if (typeof window !== "undefined") return window.location.origin;
-    return "";
-  }, [props.baseUrl]);
-
-  const chronicleUrl = `${origin}/chronicle`;
-  const reflectUrl = `${origin}/reflect`;
-  const alignUrl = `${origin}/align`;
-
   const remaining = Math.max(0, props.nextMilestone - props.alignedWallets);
 
-  const headline = props.eclipseActive
-    ? `ECLIPSE EVENT active today${props.athensDateKey ? ` (${props.athensDateKey})` : ""}.`
-    : `Eclipse is approaching: ${remaining} alignments to go.`;
+  // SUGGESTION: share /mini as canonical Farcaster-friendly entry
+  const shareText = useMemo(() => {
+    const base = normalizeBaseUrl(props.baseUrl);
 
-  const detail = props.eclipseActive
-    ? `Milestone ${props.eclipseMilestone ?? props.nextMilestone} was reached. Mint your Eclipse sigil: ${reflectUrl}`
-    : `Target ${props.nextMilestone}. Align now: ${alignUrl}`;
+    const miniUrl = `${base}/mini`;
+    const chronicleUrl = `${base}/chronicle`;
+    const reflectUrl = `${base}/reflect`;
+    const alignUrl = `${base}/align`;
 
-  const shareText = `${headline}\n${detail}\nChronicle: ${chronicleUrl}`;
+    const headline = props.eclipseActive
+      ? `ECLIPSE EVENT active today${props.athensDateKey ? ` (${props.athensDateKey})` : ""}.`
+      : `Eclipse is approaching: ${remaining} alignments to go.`;
+
+    const detail = props.eclipseActive
+      ? `Milestone ${props.eclipseMilestone ?? props.nextMilestone} was reached. Mint your Eclipse sigil: ${reflectUrl}`
+      : `Target ${props.nextMilestone}. Align now: ${alignUrl}`;
+
+    return `${headline}\n${detail}\nEnter (Mini): ${miniUrl}\nChronicle: ${chronicleUrl}`;
+  }, [
+    props.baseUrl,
+    props.eclipseActive,
+    props.athensDateKey,
+    props.eclipseMilestone,
+    props.nextMilestone,
+    remaining,
+  ]);
 
   const openX = () => {
     const text = encodeURIComponent(shareText);
@@ -50,9 +63,7 @@ export default function RallyPack(props: {
       await navigator.clipboard.writeText(shareText);
       setCopied(true);
       setTimeout(() => setCopied(false), 1200);
-    } catch {
-      // silent
-    }
+    } catch {}
   };
 
   return (
@@ -111,9 +122,7 @@ export default function RallyPack(props: {
 
       <div className="mt-4 rounded-2xl border border-zinc-200/10 bg-black/20 p-4">
         <p className="text-xs tracking-[0.22em] text-zinc-200/60">PREVIEW</p>
-        <pre className="mt-3 whitespace-pre-wrap text-xs leading-5 text-zinc-200/70">
-{shareText}
-        </pre>
+        <pre className="mt-3 whitespace-pre-wrap text-xs leading-5 text-zinc-200/70">{shareText}</pre>
       </div>
     </div>
   );
