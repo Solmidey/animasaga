@@ -15,9 +15,15 @@ import { getAthensDateKey } from "./lore-drop";
 
 const ElyndraCommitmentAbi = ElyndraCommitmentAbiRaw as Abi;
 
+const RPC =
+  process.env.RPC_URL_BASE_MAINNET ||
+  process.env.BASE_RPC_URL ||
+  BASE_MAINNET.rpcUrl ||
+  "https://base-rpc.publicnode.com";
+
 const client = createPublicClient({
   chain: base,
-  transport: http(BASE_MAINNET.rpcUrl, { batch: true }),
+  transport: http(RPC, { batch: true }),
 });
 
 type FactionName = "Flame" | "Veil" | "Echo" | "Unknown";
@@ -54,6 +60,7 @@ function previousMilestoneAtOrBelow(n: number): number {
 }
 
 export type ElyndraStats = {
+  // ✅ Existing (don’t break anything)
   counts: Record<FactionName, number>;
   totals: { alignedWallets: number };
   lastActivity: {
@@ -68,6 +75,10 @@ export type ElyndraStats = {
   };
   range: { fromBlock: number; toBlock: number };
   generatedAt: string;
+
+  // ✅ New stable shape for UI
+  factions: { flame: number; veil: number; echo: number };
+  total: number; // total aligned wallets (same as totals.alignedWallets)
 };
 
 const DEFAULT_CHUNK = 25_000;
@@ -79,9 +90,10 @@ function getFromBlock(toBlock: number) {
   const env = process.env.ELYNDRA_STATS_FROM_BLOCK;
   const fallback =
     DEPLOYMENTS.ElyndraCommitment.deploymentBlock || DEPLOYMENTS.SagaRegistry.deploymentBlock;
-  const parsed = env ? Number(env) : NaN;
 
+  const parsed = env ? Number(env) : NaN;
   const start = Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+
   return Math.min(start, toBlock);
 }
 
@@ -94,7 +106,12 @@ async function computeEclipse(alignedWallets: number, lastFactionBlock: number |
     return { isActive: false, milestone: null, nextMilestone: next, athensDateKey: todayKey };
   }
 
-  const block = await client.getBlock({ blockNumber: BigInt(lastFactionBlock) });
+  // NOTE: cast avoids rare viem type/version conflicts in TS environments.
+  const block = await (client as any).getBlock({
+    blockNumber: BigInt(lastFactionBlock),
+    includeTransactions: false,
+  });
+
   const lastTs = Number(block.timestamp) * 1000;
   const lastKey = getAthensDateKey(new Date(lastTs));
 
@@ -122,8 +139,10 @@ export async function getElyndraStats(): Promise<ElyndraStats> {
   const factionChosenEvent = getAbiItem({ abi: ElyndraCommitmentAbi, name: "FactionChosen" });
   const committedEvent = getAbiItem({ abi: ElyndraCommitmentAbi, name: "Committed" });
 
+  // user -> final faction
   const userFaction = new Map<string, number>();
 
+  // track latest activity deterministically (max block)
   let lastFactionBlock: number | null = null;
   let lastFactionTx: string | null = null;
 
@@ -158,13 +177,19 @@ export async function getElyndraStats(): Promise<ElyndraStats> {
         userFaction.set(getAddress(user as Address), faction);
       }
 
-      lastFactionBlock = Number((log as any).blockNumber ?? 0) || lastFactionBlock;
-      lastFactionTx = (log as any).transactionHash ?? lastFactionTx;
+      const bn = Number((log as any).blockNumber ?? 0) || 0;
+      if (bn > (lastFactionBlock ?? 0)) {
+        lastFactionBlock = bn;
+        lastFactionTx = (log as any).transactionHash ?? null;
+      }
     }
 
     for (const log of committedLogs) {
-      lastCommittedBlock = Number((log as any).blockNumber ?? 0) || lastCommittedBlock;
-      lastCommittedTx = (log as any).transactionHash ?? lastCommittedTx;
+      const bn = Number((log as any).blockNumber ?? 0) || 0;
+      if (bn > (lastCommittedBlock ?? 0)) {
+        lastCommittedBlock = bn;
+        lastCommittedTx = (log as any).transactionHash ?? null;
+      }
     }
   }
 
@@ -174,6 +199,7 @@ export async function getElyndraStats(): Promise<ElyndraStats> {
     Echo: 0,
     Unknown: 0,
   };
+
   for (const faction of userFaction.values()) {
     counts[factionNameFromIndex(faction)] += 1;
   }
@@ -182,6 +208,7 @@ export async function getElyndraStats(): Promise<ElyndraStats> {
   const eclipse = await computeEclipse(alignedWallets, lastFactionBlock);
 
   const data: ElyndraStats = {
+    // existing
     counts,
     totals: { alignedWallets },
     lastActivity: {
@@ -191,6 +218,14 @@ export async function getElyndraStats(): Promise<ElyndraStats> {
     eclipse,
     range: { fromBlock, toBlock },
     generatedAt: new Date().toISOString(),
+
+    // new stable shape (frontend-friendly)
+    factions: {
+      flame: counts.Flame,
+      veil: counts.Veil,
+      echo: counts.Echo,
+    },
+    total: alignedWallets,
   };
 
   cache = { key, at: now, data };

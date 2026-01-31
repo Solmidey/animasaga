@@ -1,20 +1,13 @@
 // apps/web/app/api/reflect/route.ts
 import { NextResponse } from "next/server";
-import {
-  createPublicClient,
-  http,
-  isAddress,
-  getAddress,
-  type Abi,
-  type Address,
-} from "viem";
+import { createPublicClient, http, isAddress, getAddress, type Abi, type Address } from "viem";
 import { base } from "viem/chains";
 import { BASE_MAINNET, DEPLOYMENTS } from "@/lib/constants";
 
 export const runtime = "nodejs";
 export const revalidate = 10;
 
-const SagaRegistryHasChosenAbi = [
+const SagaRegistryReadAbi = [
   {
     type: "function",
     name: "hasChosen",
@@ -22,9 +15,6 @@ const SagaRegistryHasChosenAbi = [
     inputs: [{ name: "user", type: "address" }],
     outputs: [{ name: "", type: "bool" }],
   },
-] as const satisfies Abi;
-
-const SagaRegistryIsLockedAbi = [
   {
     type: "function",
     name: "isLocked",
@@ -34,8 +24,16 @@ const SagaRegistryIsLockedAbi = [
   },
 ] as const satisfies Abi;
 
-// We don't know your registry() struct shape for sure,
-// so we try several common ones until one succeeds.
+const SagaRegistryRegisterAbi = [
+  {
+    type: "function",
+    name: "register",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: [],
+  },
+] as const satisfies Abi;
+
 const SagaRegistryRegistryCandidates: Abi[] = [
   // registry(address) -> (bool)
   [
@@ -122,26 +120,34 @@ function factionNameFromId(id: number | null) {
   return "Unknown";
 }
 
-async function tryReadRegistry(
-  client: ReturnType<typeof createPublicClient>,
-  user: Address
-): Promise<{ registered: boolean; source: string; raw: any }> {
+function looksLikeAlreadyRegistered(msg: string) {
+  const s = msg.toLowerCase();
+  return (
+    s.includes("already") ||
+    s.includes("registered") ||
+    s.includes("exists") ||
+    s.includes("duplicate") ||
+    s.includes("has chosen") ||
+    s.includes("chosen")
+  );
+}
+
+// client typed as any intentionally to avoid viem-version type conflicts in TS
+async function detectRegistered(client: any, user: Address) {
   const saga = getAddress(DEPLOYMENTS.SagaRegistry.address as Address);
 
   // 1) hasChosen(user)
   try {
     const v = await client.readContract({
       address: saga,
-      abi: SagaRegistryHasChosenAbi,
+      abi: SagaRegistryReadAbi,
       functionName: "hasChosen",
       args: [user],
     });
     return { registered: Boolean(v), source: "hasChosen", raw: v };
-  } catch {
-    // continue
-  }
+  } catch {}
 
-  // 2) registry(user) with multiple candidate struct shapes
+  // 2) registry(user) candidates
   for (let i = 0; i < SagaRegistryRegistryCandidates.length; i++) {
     const abi = SagaRegistryRegistryCandidates[i];
     try {
@@ -152,21 +158,35 @@ async function tryReadRegistry(
         args: [user],
       });
 
-      // Interpret:
-      // - if bool returned directly -> use it
-      // - if tuple/array and first item is bool -> use it
       if (typeof v === "boolean") return { registered: v, source: `registry#${i}`, raw: v };
       if (Array.isArray(v) && typeof v[0] === "boolean")
         return { registered: Boolean(v[0]), source: `registry#${i}`, raw: v };
 
-      // If it returned something weird, treat as not enough info
+      // If it returns something but not interpretable
       return { registered: false, source: `registry#${i}-unknown`, raw: v };
-    } catch {
-      // try next candidate
-    }
+    } catch {}
   }
 
-  return { registered: false, source: "none", raw: null };
+  // 3) FINAL fallback: simulate register()
+  // If it reverts "already registered", we mark registered=true.
+  try {
+    await client.simulateContract({
+      address: saga,
+      abi: SagaRegistryRegisterAbi,
+      functionName: "register",
+      account: user,
+      args: [],
+    });
+    // Simulation succeeded -> likely NOT registered (or register is idempotent)
+    return { registered: false, source: "simulate-register:ok", raw: null };
+  } catch (e: any) {
+    const msg = String(e?.shortMessage || e?.message || "");
+    if (looksLikeAlreadyRegistered(msg)) {
+      return { registered: true, source: "simulate-register:already", raw: msg };
+    }
+    // Some other failure (locked, etc). Don’t assume registered.
+    return { registered: false, source: "simulate-register:revert-other", raw: msg };
+  }
 }
 
 export async function GET(req: Request) {
@@ -179,8 +199,6 @@ export async function GET(req: Request) {
 
   const user = getAddress(addressParam as Address);
 
-  // IMPORTANT: ensure you are reading BASE MAINNET
-  // If you accidentally set BASE_RPC_URL to Sepolia, remove it.
   const rpc =
     process.env.RPC_URL_BASE_MAINNET ||
     process.env.BASE_RPC_URL ||
@@ -192,14 +210,14 @@ export async function GET(req: Request) {
     transport: http(rpc, { batch: true }),
   });
 
-  // --- SagaRegistry status
-  const reg = await tryReadRegistry(client, user);
+  // --- SagaRegistry
+  const reg = await detectRegistered(client as any, user);
 
   let isLocked: boolean | null = null;
   try {
-    isLocked = await client.readContract({
+    isLocked = await (client as any).readContract({
       address: getAddress(DEPLOYMENTS.SagaRegistry.address as Address),
-      abi: SagaRegistryIsLockedAbi,
+      abi: SagaRegistryReadAbi,
       functionName: "isLocked",
       args: [],
     });
@@ -207,13 +225,13 @@ export async function GET(req: Request) {
     isLocked = null;
   }
 
-  // --- ElyndraCommitment status
+  // --- ElyndraCommitment
   let hasChosen = false;
   let factionId: number | null = null;
   let commitmentHash: string = "0x" + "0".repeat(64);
 
   try {
-    hasChosen = await client.readContract({
+    hasChosen = await (client as any).readContract({
       address: getAddress(DEPLOYMENTS.ElyndraCommitment.address as Address),
       abi: ElyndraCommitmentAbi,
       functionName: "hasChosen",
@@ -223,28 +241,31 @@ export async function GET(req: Request) {
     hasChosen = false;
   }
 
-  try {
-    const id = await client.readContract({
-      address: getAddress(DEPLOYMENTS.ElyndraCommitment.address as Address),
-      abi: ElyndraCommitmentAbi,
-      functionName: "factionOf",
-      args: [user],
-    });
-    factionId = Number(id);
-  } catch {
-    factionId = null;
-  }
+  // IMPORTANT: only treat faction as meaningful if hasChosen === true
+  if (hasChosen) {
+    try {
+      const id = await (client as any).readContract({
+        address: getAddress(DEPLOYMENTS.ElyndraCommitment.address as Address),
+        abi: ElyndraCommitmentAbi,
+        functionName: "factionOf",
+        args: [user],
+      });
+      factionId = Number(id);
+    } catch {
+      factionId = null;
+    }
 
-  try {
-    const h = await client.readContract({
-      address: getAddress(DEPLOYMENTS.ElyndraCommitment.address as Address),
-      abi: ElyndraCommitmentAbi,
-      functionName: "commitments",
-      args: [user],
-    });
-    commitmentHash = String(h);
-  } catch {
-    commitmentHash = "0x" + "0".repeat(64);
+    try {
+      const h = await (client as any).readContract({
+        address: getAddress(DEPLOYMENTS.ElyndraCommitment.address as Address),
+        abi: ElyndraCommitmentAbi,
+        functionName: "commitments",
+        args: [user],
+      });
+      commitmentHash = String(h);
+    } catch {
+      commitmentHash = "0x" + "0".repeat(64);
+    }
   }
 
   return NextResponse.json({
@@ -253,14 +274,14 @@ export async function GET(req: Request) {
       registered: reg.registered,
       isLocked,
       contract: DEPLOYMENTS.SagaRegistry.address,
-      // debug (helps you confirm what's being used)
+      // debug so we can confirm what worked
       source: reg.source,
       raw: reg.raw,
     },
     elyndra: {
       hasChosen,
       factionOf: factionId,
-      factionName: factionNameFromId(factionId),
+      factionName: hasChosen ? factionNameFromId(factionId) : "Unknown",
       commitmentHash,
       commitmentBlock: 0,
       contract: DEPLOYMENTS.ElyndraCommitment.address,
