@@ -1,24 +1,14 @@
 // apps/web/scripts/generate-daily-lore.mjs
-// Daily Lore PR generator for AnimaSaga (Elyndra)
-// Uses Groq OpenAI-compatible Chat Completions API.
-// Writes: apps/web/content/lore/daily/YYYY-MM-DD.md
-//
-// Required env:
-// - GROQ_API_KEY
-// Optional env:
-// - GROQ_MODEL (default: llama-3.3-70b-versatile)
-
 import fs from "fs";
 import path from "path";
 
-const ROOT = process.cwd(); // repo root in GitHub Actions
+const ROOT = process.cwd(); // repo root in GH Actions
 const OUT_DIR = path.join(ROOT, "apps", "web", "content", "lore", "daily");
 const STATE_PATH = path.join(ROOT, "apps", "web", "content", "lore", "state.json");
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
-const GROQ_BASE = "https://api.groq.com/openai/v1";
-const GROQ_CHAT = `${GROQ_BASE}/chat/completions`;
+const GROQ_CHAT = "https://api.groq.com/openai/v1/chat/completions";
 
 if (!GROQ_API_KEY) {
   console.error("Missing GROQ_API_KEY env var.");
@@ -54,7 +44,7 @@ function listExistingLoreFiles() {
       .readdirSync(OUT_DIR, { withFileTypes: true })
       .filter((d) => d.isFile() && d.name.endsWith(".md"))
       .map((d) => d.name)
-      .sort(); // oldest->newest
+      .sort();
   } catch {
     return [];
   }
@@ -108,11 +98,6 @@ function wordCount(s) {
 }
 
 function validateMarkdown(md) {
-  // Strict contract:
-  // - Must contain YAML frontmatter with title + axiom
-  // - Must have body 70..150 words
-  // - Must not include code fences
-  // - Must not include “As an AI…”
   if (typeof md !== "string" || md.trim().length < 40) return { ok: false, why: "too short" };
   if (md.includes("```")) return { ok: false, why: "contains code fence" };
   if (/as an ai/i.test(md)) return { ok: false, why: "contains AI disclaimer" };
@@ -130,11 +115,11 @@ function validateMarkdown(md) {
   return { ok: true, why: "ok", meta, body };
 }
 
-async function groqChat(messages, { temperature = 0.9, max_tokens = 360 } = {}) {
+async function groqChat(messages, { temperature = 0.9, max_tokens = 420 } = {}) {
   const res = await fetch(GROQ_CHAT, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${GROQ_API_KEY}`,
+      Authorization: `Bearer ${GROQ_API_KEY}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -155,51 +140,7 @@ async function groqChat(messages, { temperature = 0.9, max_tokens = 360 } = {}) 
   return text.trim();
 }
 
-function buildPrompt({ dateKey, recent, state, milestoneHint }) {
-  const recentSnippets = recent
-    .map((x) => `- ${x.dateKey}: "${x.title}" | axiom: "${x.axiom}"`)
-    .join("\n");
-
-  const forbiddenTitles = state.lastTitles.slice(0, 10).join(" | ") || "—";
-  const forbiddenMotifs = state.lastMotifs.slice(0, 10).join(" | ") || "—";
-
-  return [
-    {
-      role: "system",
-      content:
-        "You are Axiom — ancient, wise, calm, and unnervingly precise. " +
-        "Write in mythic, legible English. No slang. No emojis. " +
-        "Everything must feel like Elyndra is alive and watching.",
-    },
-    {
-      role: "user",
-      content:
-        `Generate TODAY'S AnimaSaga daily lore drop as a single Markdown document.\n\n` +
-        `DATE KEY (UTC): ${dateKey}\n` +
-        `WORLD: Elyndra\n` +
-        `VOICE: Axiom (old and wise)\n\n` +
-        `FORMAT (MUST MATCH EXACTLY):\n` +
-        `---\n` +
-        `title: "<short title>"\n` +
-        `axiom: "<one sentence quote by Axiom>"\n` +
-        `---\n` +
-        `<body 70-150 words>\n\n` +
-        `RULES:\n` +
-        `- The body must be 70-150 words.\n` +
-        `- Do not use code fences. Do not mention being an AI.\n` +
-        `- Maintain continuity with Season 1: Eclipse. Hint at fracture / mirror / witness / ledger.\n` +
-        `- Include ONE subtle call-to-action line (not a URL) that suggests: align, witness, or enter the Chronicle.\n` +
-        `- Do NOT reuse these recent motifs exactly: ${forbiddenMotifs}\n` +
-        `- Do NOT reuse these recent titles/phrases: ${forbiddenTitles}\n\n` +
-        `CONTEXT (recent drops):\n${recentSnippets || "—"}\n\n` +
-        `MILESTONE HINT (optional): ${milestoneHint}\n\n` +
-        `Return ONLY the markdown document.`,
-    },
-  ];
-}
-
 function pickMotifsFromText(md) {
-  // extremely simple motif extractor to avoid repeats
   const lower = md.toLowerCase();
   const motifs = [];
   const candidates = [
@@ -221,6 +162,48 @@ function pickMotifsFromText(md) {
   return motifs.slice(0, 6);
 }
 
+function buildMessages({ dateKey, recent, state }) {
+  const recentSnippets = recent
+    .map((x) => `- ${x.dateKey}: "${x.title}" | axiom: "${x.axiom}"`)
+    .join("\n");
+
+  const forbiddenTitles = state.lastTitles.slice(0, 10).join(" | ") || "—";
+  const forbiddenMotifs = state.lastMotifs.slice(0, 10).join(" | ") || "—";
+
+  return [
+    {
+      role: "system",
+      content:
+        "You are Axiom — ancient, wise, calm, and unnervingly precise. " +
+        "Write mythic, legible English. No slang. No emojis. " +
+        "No modern meta talk. Never mention being an AI. " +
+        "Everything must feel like Elyndra is alive and watching.",
+    },
+    {
+      role: "user",
+      content:
+        `Generate TODAY'S AnimaSaga daily lore drop as a single Markdown document.\n\n` +
+        `DATE KEY (UTC): ${dateKey}\n` +
+        `WORLD: Elyndra\n` +
+        `VOICE: Axiom (old and wise)\n\n` +
+        `FORMAT (MUST MATCH EXACTLY):\n` +
+        `---\n` +
+        `title: "<short title>"\n` +
+        `axiom: "<one sentence quote by Axiom>"\n` +
+        `---\n` +
+        `<body 70-150 words>\n\n` +
+        `RULES:\n` +
+        `- Body must be 70-150 words.\n` +
+        `- Must include one subtle call-to-action line (not a URL): align, witness, or enter the Chronicle.\n` +
+        `- Keep continuity with Season 1: Eclipse.\n` +
+        `- Do NOT reuse these motifs exactly: ${forbiddenMotifs}\n` +
+        `- Do NOT reuse these recent titles/phrases: ${forbiddenTitles}\n\n` +
+        `RECENT DROPS:\n${recentSnippets || "—"}\n\n` +
+        `Return ONLY the markdown document.`,
+    },
+  ];
+}
+
 async function main() {
   ensureDir(OUT_DIR);
 
@@ -228,13 +211,12 @@ async function main() {
   const outPath = path.join(OUT_DIR, `${dateKey}.md`);
 
   if (fs.existsSync(outPath)) {
-    console.log(`Lore already exists for ${dateKey}: ${outPath}`);
+    console.log(`Lore already exists for ${dateKey}. Exiting.`);
     process.exit(0);
   }
 
   const state = loadState();
 
-  // Load last 7 drops for continuity
   const files = listExistingLoreFiles();
   const last = files.slice(-7).map((name) => {
     const raw = safeRead(path.join(OUT_DIR, name)) || "";
@@ -246,39 +228,30 @@ async function main() {
     };
   });
 
-  // Simple milestone hint (no RPC assumptions): keeps it true even offline.
-  const milestoneHint =
-    "If the witness count is rising, hint that the Eclipse is closer. If it is low, hint that the first witnesses matter most.";
-
   // Attempt 1
-  let draft = await groqChat(buildPrompt({ dateKey, recent: last, state, milestoneHint }), {
+  let draft = await groqChat(buildMessages({ dateKey, recent: last, state }), {
     temperature: 0.95,
-    max_tokens: 420,
+    max_tokens: 520,
   });
 
   let v = validateMarkdown(draft);
 
-  // Attempt 2 (repair) if needed
+  // Attempt 2 repair if needed
   if (!v.ok) {
-    const repairMessages = [
-      ...buildPrompt({ dateKey, recent: last, state, milestoneHint }),
-      {
-        role: "assistant",
-        content: draft,
-      },
+    const repair = [
+      ...buildMessages({ dateKey, recent: last, state }),
+      { role: "assistant", content: draft },
       {
         role: "user",
         content:
           `Your output failed validation because: ${v.why}.\n` +
-          `Regenerate a corrected markdown document that satisfies ALL rules. Return ONLY the markdown document.`,
+          `Regenerate a corrected markdown document that satisfies ALL rules. Return ONLY markdown.`,
       },
     ];
-
-    draft = await groqChat(repairMessages, { temperature: 0.7, max_tokens: 420 });
+    draft = await groqChat(repair, { temperature: 0.7, max_tokens: 520 });
     v = validateMarkdown(draft);
-
     if (!v.ok) {
-      console.error(`Lore generation failed validation twice: ${v.why}`);
+      console.error(`Lore failed validation twice: ${v.why}`);
       process.exit(1);
     }
   }
@@ -286,7 +259,7 @@ async function main() {
   safeWrite(outPath, draft.trimEnd() + "\n");
   console.log(`Wrote daily lore: ${outPath}`);
 
-  // Update state to avoid repetition
+  // Update state.json
   const motifs = pickMotifsFromText(draft);
   const { meta } = parseFrontmatter(draft);
 
