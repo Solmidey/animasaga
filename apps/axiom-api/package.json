@@ -1,1 +1,21 @@
+{
+  "name": "axiom-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "register:commands": "node scripts/register-commands.mjs"
+  },
+  "dependencies": {
+    "hono": "^4.6.12",
+    "tweetnacl": "^1.0.3",
+    "viem": "^2.19.5"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250129.0",
+    "typescript": "^5.6.3"
+  }
+}
 

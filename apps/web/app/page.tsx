@@ -44,8 +44,10 @@ export default async function Page() {
     nextMilestone,
   });
 
-  // Stable absolute base URL for RallyPack (SSR-safe)
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  // ✅ Fix: never bake localhost into SSR output; keep it deterministic
+  // RallyPack should accept a baseUrl, but it must be stable across server/client.
+  // If NEXT_PUBLIC_APP_URL isn't set (dev), we pass an empty string and RallyPack will use relative URLs.
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
   return (
     <main className="min-h-screen bg-[radial-gradient(70%_50%_at_50%_0%,rgba(255,255,255,0.06),transparent_60%),linear-gradient(to_bottom,rgba(255,255,255,0.02),transparent_20%,rgba(0,0,0,0.15))] text-zinc-100">
@@ -66,14 +68,10 @@ export default async function Page() {
             ANIMASAGA
           </h1>
 
-          <p className="mt-4 text-base text-zinc-200/80 md:text-lg">
-            An onchain chronicle of choice.
-          </p>
+          <p className="mt-4 text-base text-zinc-200/80 md:text-lg">An onchain chronicle of choice.</p>
 
           <div className="mt-10 space-y-2">
-            <p className="font-display text-2xl text-zinc-100/95 md:text-3xl">
-              Elyndra remembers.
-            </p>
+            <p className="font-display text-2xl text-zinc-100/95 md:text-3xl">Elyndra remembers.</p>
             <p className="text-sm leading-7 text-zinc-200/70 md:text-base">
               Every alignment leaves a scar.
               <br />
@@ -88,9 +86,7 @@ export default async function Page() {
               className="group inline-flex w-fit items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-6 py-3 text-sm font-medium text-zinc-100 shadow-[0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur transition hover:bg-zinc-50/10 hover:border-zinc-200/20"
             >
               Enter Elyndra
-              <span className="ml-2 inline-block transition group-hover:translate-x-0.5">
-                →
-              </span>
+              <span className="ml-2 inline-block transition group-hover:translate-x-0.5">→</span>
             </Link>
 
             <Link
@@ -112,6 +108,14 @@ export default async function Page() {
               className="inline-flex w-fit items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-6 py-3 text-sm text-zinc-100/90 hover:bg-zinc-50/10 hover:border-zinc-200/20"
             >
               Mini →
+            </Link>
+
+            {/* ✅ NEW: Discord link rite (deterministic, no absolute URL) */}
+            <Link
+              href="/axiom/link"
+              className="inline-flex w-fit items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-6 py-3 text-sm text-zinc-100/90 hover:bg-zinc-50/10 hover:border-zinc-200/20"
+            >
+              Link Discord →
             </Link>
           </div>
 
@@ -183,17 +187,27 @@ export default async function Page() {
                 >
                   Watch the Heartbeat →
                 </Link>
+
                 <Link
                   href="/reflect"
                   className="inline-flex w-fit items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-5 py-2 text-xs hover:bg-zinc-50/10"
                 >
                   Reflection →
                 </Link>
+
                 <Link
                   href="/mini"
                   className="inline-flex w-fit items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-5 py-2 text-xs hover:bg-zinc-50/10"
                 >
                   Mini →
+                </Link>
+
+                {/* ✅ NEW: quick access to link rite */}
+                <Link
+                  href="/axiom/link"
+                  className="inline-flex w-fit items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-5 py-2 text-xs hover:bg-zinc-50/10"
+                >
+                  Link Discord →
                 </Link>
               </div>
             </div>
@@ -217,12 +231,11 @@ export default async function Page() {
           <h2 className="font-display text-2xl md:text-3xl">Elyndra is not a game.</h2>
           <div className="mt-6 space-y-5 text-sm leading-7 text-zinc-200/75 md:text-base">
             <p>
-              It is a world where decisions do not reset. Where alignment is permanent.
-              Where the Chain does not forgive — it records.
+              It is a world where decisions do not reset. Where alignment is permanent. Where the Chain does not
+              forgive — it records.
             </p>
             <p>
-              In Elyndra, you do not role-play a character. You reveal what you are willing
-              to stand behind.
+              In Elyndra, you do not role-play a character. You reveal what you are willing to stand behind.
             </p>
           </div>
         </section>
@@ -231,7 +244,8 @@ export default async function Page() {
           <h2 className="font-display text-2xl md:text-3xl">There was a fracture.</h2>
           <div className="mt-6 space-y-5 text-sm leading-7 text-zinc-200/75 md:text-base">
             <p>
-              Not of land —<br />
+              Not of land —
+              <br />
               but of intention.
             </p>
             <p>From it emerged forces. Not gods. Not factions. Alignments.</p>
@@ -273,6 +287,13 @@ export default async function Page() {
               >
                 Mini →
               </Link>
+              {/* ✅ NEW: Discord link rite */}
+              <Link
+                href="/axiom/link"
+                className="inline-flex items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-6 py-3 text-sm hover:bg-zinc-50/10"
+              >
+                Link Discord →
+              </Link>
             </div>
           </div>
         </section>
@@ -289,7 +310,7 @@ export default async function Page() {
 
       <HeartbeatTeaser flame={flame} veil={veil} echo={echo} alignedWallets={alignedWallets} />
 
-      {/* NEW: One-time Witness Oath Overlay (client-only; safe for hydration) */}
+      {/* One-time Witness Oath Overlay (client-only; safe for hydration) */}
       <OathOverlay />
     </main>
   );

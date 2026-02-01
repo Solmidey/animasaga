@@ -2,6 +2,7 @@
 import Link from "next/link";
 import CanonFeed from "@/components/CanonFeed";
 import WitnessWallCards from "@/components/WitnessWallCards";
+import DailyLoreDrop from "@/components/DailyLoreDrop";
 
 export const revalidate = 10;
 
@@ -14,7 +15,7 @@ export default async function ChroniclePage() {
             <p className="text-xs tracking-[0.28em] text-zinc-200/60">CHRONICLE</p>
             <h1 className="mt-4 font-display text-5xl md:text-6xl">The Ledger</h1>
             <p className="mt-5 max-w-2xl text-sm leading-7 text-zinc-200/70 md:text-base">
-              Canon chapters and witness marks — where Elyndra becomes permanent.
+              Canon chapters, daily drops, and witness marks — where Elyndra becomes permanent.
             </p>
           </div>
 
@@ -25,24 +26,33 @@ export default async function ChroniclePage() {
             >
               Threshold
             </Link>
+
             <Link
               href="/align"
               className="inline-flex rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-4 py-2 text-sm hover:bg-zinc-50/10"
             >
               Align
             </Link>
-            {/* ✅ new */}
+
             <Link
               href="/reflect"
               className="inline-flex rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-4 py-2 text-sm hover:bg-zinc-50/10"
             >
               Reflection
             </Link>
+
+            <Link
+              href="/axiom/link"
+              className="inline-flex rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-4 py-2 text-sm hover:bg-zinc-50/10"
+            >
+              Link Discord
+            </Link>
           </div>
         </div>
 
         {/* Cards only: stacked */}
         <div className="mt-10 flex flex-col gap-6">
+          <DailyLoreDrop />
           <CanonFeed />
           <WitnessWallCards />
         </div>

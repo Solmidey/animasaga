@@ -1,0 +1,22 @@
+name = "axiom-api"
+main = "src/index.ts"
+compatibility_date = "2026-02-01"
+
+# ✅ KV bindings (your IDs)
+kv_namespaces = [
+  { binding = "AXIOM_LINKS", id = "2e4d801e9e7d421ab27ef43f26d00366", preview_id = "e09c898c3617444396139d75e7f32777" },
+  { binding = "AXIOM_NONCES", id = "6857009bbaab4ccfab9e87bb9da9f6b2", preview_id = "10541181d8cb435a91038b5cd47ce616" },
+  { binding = "AXIOM_RL", id = "af4a64b0fc9d492faecff880c71ba32f", preview_id = "5c6d01577cdf445e870e9b0f2aba367b" }
+]
+
+[vars]
+# Base + contracts (non-secret)
+BASE_RPC_URL = "https://base-rpc.publicnode.com"
+
+ELYNDRA_COMMITMENT_ADDRESS = "0x2355451edBEE92138AB06231ED2b391089E9d4d1"
+WITNESS_REGISTRY_ADDRESS   = "0x3cea345e4b0f41596879F568894c2a548605D472"
+WITNESS_SEASON_ID          = "1"
+WITNESS_DEPLOYMENT_BLOCK   = "41479056"
+
+# Discord (non-secret)
+DISCORD_GUILD_ID = "1460194563208646723"
