@@ -1,5 +1,6 @@
 // apps/web/lib/constants.ts
 export const BASE_MAINNET = {
+  name: "Base Mainnet",
   chainId: 8453,
   // Server-side reads use BASE_RPC_URL; client reads use NEXT_PUBLIC_BASE_RPC_URL (set in .env.local)
   rpcUrl:
@@ -31,3 +32,4 @@ export const DEPLOYMENTS = {
 
 // ✅ NEW: Season ID used for witness writes (client + server)
 export const WITNESS_SEASON_ID = Number(process.env.NEXT_PUBLIC_WITNESS_SEASON_ID ?? "1");
+export const SEASON_END_BLOCK_FALLBACK = 41938131;
