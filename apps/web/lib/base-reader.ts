@@ -11,7 +11,7 @@ import { base } from "viem/chains";
 
 import SagaRegistryAbiRaw from "./abi/SagaRegistry.json";
 import ElyndraCommitmentAbiRaw from "./abi/ElyndraCommitment.json";
-import { BASE_MAINNET, DEPLOYMENTS } from "./constants";
+import { BASE_MAINNET, DEPLOYMENTS, SEASON_END_BLOCK_FALLBACK } from "./constants";
 
 const SagaRegistryAbi = SagaRegistryAbiRaw as Abi;
 const ElyndraCommitmentAbi = ElyndraCommitmentAbiRaw as Abi;
@@ -128,7 +128,7 @@ export async function getChronicleSnapshot(): Promise<ChronicleSnapshot> {
   // Prefer onchain end block if available; fallback to your saved constant
   const endBlock = seasonEndBlockOnchain
     ? Number(seasonEndBlockOnchain)
-    : DEPLOYMENTS.Season.seasonEndBlock;
+    : SEASON_END_BLOCK_FALLBACK;
 
   const blocksRemaining = Math.max(0, endBlock - currentBlock);
   const span = Math.max(1, endBlock - deploymentBlock);
