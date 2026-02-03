@@ -11,21 +11,27 @@ import { WITNESS_SEASON_ID } from "@/lib/constants";
  * - must sign a server-verified message
  * - server verifies signature -> address
  * - server checks onchain witness -> allow full body
+ *
+ * Canon storage model (current): markdown files on disk.
+ * "Sealed" means: body is never returned from /api/canon.
+ * Only /api/canon/unseal returns body if witnessed + signed.
  */
 
-// Simple in-memory anti-replay (dev/edge safe-ish). For production, use Redis.
+// Simple in-memory anti-replay (OK for MVP). For production, move to Redis/KV.
 const usedNonces = new Map<string, number>(); // key = `${addr}:${nonce}` -> exp(ms)
 const RATE = new Map<string, number[]>(); // ip -> timestamps
 
 function nowMs() {
   return Date.now();
 }
+
 function pruneNonces() {
   const t = nowMs();
   for (const [k, exp] of usedNonces.entries()) {
     if (exp <= t) usedNonces.delete(k);
   }
 }
+
 function rateLimit(ip: string, limit = 25, windowMs = 60_000) {
   const t = nowMs();
   const arr = RATE.get(ip) ?? [];
@@ -115,6 +121,7 @@ export async function POST(req: Request) {
   // mark nonce used (10 minutes)
   usedNonces.set(nonceKey, nowMs() + 10 * 60_000);
 
+  // ✅ return body ONLY here
   return NextResponse.json(
     {
       ok: true,

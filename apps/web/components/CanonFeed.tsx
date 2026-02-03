@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAccount, useSignMessage } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 
@@ -63,10 +63,10 @@ export default function CanonFeed() {
   const [loadingBody, setLoadingBody] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // ✅ NEW: if user clicks unseal while disconnected, we auto-continue after connect
+  // If user clicks unseal while disconnected, we auto-continue after connect
   const [pendingUnseal, setPendingUnseal] = useState(false);
 
-  // ✅ NEW: show real gate status in the UI (updates the “Not witnessed.” line)
+  // Live gate state for status line + CTA logic
   const [gate, setGate] = useState<GateState>({
     checking: false,
     witnessed: null,
@@ -74,12 +74,15 @@ export default function CanonFeed() {
     factionName: null,
   });
 
+  // Prevent duplicate auto-unseal spam
+  const autoUnsealRanRef = useRef(false);
+
   const fetchList = async () => {
     setLoading(true);
     setErr(null);
     try {
       const res = await fetch("/api/canon", { cache: "no-store" });
-      const json = await res.json();
+      const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error || "Canon unavailable.");
       setList(Array.isArray(json?.chapters) ? json.chapters : []);
     } catch (e: any) {
@@ -93,7 +96,7 @@ export default function CanonFeed() {
   const fetchMilestones = async () => {
     try {
       const res = await fetch("/api/milestones", { cache: "no-store" });
-      const json = await res.json();
+      const json = await res.json().catch(() => null);
       if (!res.ok) return;
       setMilestones(json);
     } catch {
@@ -115,7 +118,6 @@ export default function CanonFeed() {
 
   const eclipseUnlocked = Boolean(milestones?.unlocked?.eclipse);
 
-  // Chapter lock rule: ch-002 unlocks at milestone canon_ch_002
   const isUnlockedByMilestone = (c: CanonListItem) => {
     if (c.slug === "ch-002") return Boolean(milestones?.unlocked?.canon_ch_002);
     return true;
@@ -124,59 +126,64 @@ export default function CanonFeed() {
   const openChapter = (c: CanonListItem) => {
     setErr(null);
     setActive({ ...c });
+    autoUnsealRanRef.current = false;
   };
 
-  // ✅ NEW: Always refresh gate state when:
-  // - wallet connects/disconnects
-  // - wallet address changes
-  // - chapter changes (for UI clarity)
-  useEffect(() => {
-    let cancelled = false;
+  // --- Gate refresh (wallet -> witness + alignment) ---
+  const refreshGate = async (addr: string) => {
+    setGate((g) => ({ ...g, checking: true }));
+    try {
+      // Witness status
+      const wRes = await fetch(`/api/witness/status?address=${addr}`, { cache: "no-store" });
+      const wJson = await wRes.json().catch(() => ({}));
+      const witnessed = Boolean(wRes.ok && wJson?.witnessed);
 
-    async function refreshGate() {
-      if (!isConnected || !address) {
-        setGate({ checking: false, witnessed: null, aligned: null, factionName: null });
-        return;
-      }
+      // Alignment snapshot
+      const rRes = await fetch(`/api/reflect?address=${addr}`, { cache: "no-store" });
+      const rJson = await rRes.json().catch(() => ({}));
+      const aligned = Boolean(rRes.ok && rJson?.elyndra?.hasChosen);
+      const factionName =
+        typeof rJson?.elyndra?.factionName === "string"
+          ? (rJson.elyndra.factionName as GateState["factionName"])
+          : "Unknown";
 
-      setGate((g) => ({ ...g, checking: true }));
-      try {
-        // 1) Witness status
-        const wRes = await fetch(`/api/witness/status?address=${address}`, { cache: "no-store" });
-        const wJson = await wRes.json().catch(() => ({}));
-        const witnessed = Boolean(wRes.ok && wJson?.witnessed);
-
-        // 2) Alignment snapshot (you already have /api/reflect in this project)
-        const rRes = await fetch(`/api/reflect?address=${address}`, { cache: "no-store" });
-        const rJson = await rRes.json().catch(() => ({}));
-        const hasChosen = Boolean(rRes.ok && rJson?.elyndra?.hasChosen);
-        const factionName =
-          typeof rJson?.elyndra?.factionName === "string" ? rJson.elyndra.factionName : "Unknown";
-
-        if (cancelled) return;
-        setGate({ checking: false, witnessed, aligned: hasChosen, factionName });
-      } catch {
-        if (cancelled) return;
-        // Don’t brick the UI if RPC hiccups: show “unknown” but keep UX functional.
-        setGate({ checking: false, witnessed: null, aligned: null, factionName: null });
-      }
+      setGate({ checking: false, witnessed, aligned, factionName });
+    } catch {
+      setGate({ checking: false, witnessed: null, aligned: null, factionName: null });
     }
+  };
 
-    refreshGate();
-    return () => {
-      cancelled = true;
-    };
+  // Refresh gate when wallet changes or chapter changes
+  useEffect(() => {
+    if (!isConnected || !address) {
+      setGate({ checking: false, witnessed: null, aligned: null, factionName: null });
+      return;
+    }
+    refreshGate(address);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected, address, active?.id]);
+
+  // Optional gentle refresh while chapter is open (keeps UI honest after tx confirms)
+  useEffect(() => {
+    if (!active) return;
+    if (!isConnected || !address) return;
+
+    const t = window.setInterval(() => {
+      refreshGate(address);
+    }, 12_000);
+
+    return () => window.clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active?.id, isConnected, address]);
 
   const gateLine = useMemo(() => {
     if (!isConnected || !address) return "Wallet not connected.";
     if (gate.checking) return "Verifying your chain…";
-    // strict: alignment required to count as “valid access”
     if (gate.aligned === false) return "Not aligned.";
     if (gate.witnessed === false) return "Not witnessed.";
     if (gate.witnessed === true && gate.aligned === true) return "Witnessed.";
     return "Status unknown (RPC delay).";
-  }, [isConnected, address, gate]);
+  }, [isConnected, address, gate.checking, gate.aligned, gate.witnessed]);
 
   const runUnseal = async () => {
     setErr(null);
@@ -193,12 +200,12 @@ export default function CanonFeed() {
       return;
     }
 
-    // ✅ strict rule: must be aligned + witnessed
-    if (gate.aligned === false) {
+    // Strict: must be aligned + witnessed (if RPC delay returns null, treat as not ready)
+    if (gate.aligned !== true) {
       setErr("Unseal requires Alignment. Bind yourself to a faction first.");
       return;
     }
-    if (gate.witnessed === false) {
+    if (gate.witnessed !== true) {
       setErr("Unseal requires an onchain Witness mark. Complete the Call to Witness first.");
       return;
     }
@@ -227,7 +234,7 @@ export default function CanonFeed() {
         }),
       });
 
-      const json = await res.json();
+      const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error || "Unseal failed.");
 
       setActive(json?.chapter ?? active);
@@ -236,16 +243,21 @@ export default function CanonFeed() {
     } finally {
       setLoadingBody(false);
       setPendingUnseal(false);
+      autoUnsealRanRef.current = true;
     }
   };
 
-  // ✅ NEW: opens wallet modal if not connected (instead of just printing error)
+  // Opens wallet modal if not connected; otherwise unseals
   const unseal = async () => {
     setErr(null);
     if (!active) return;
 
+    // If already unsealed, do nothing
+    if (active.body) return;
+
     if (!isConnected || !address) {
       setPendingUnseal(true);
+      autoUnsealRanRef.current = false;
       if (openConnectModal) openConnectModal();
       else setErr("Connect your wallet (open /align) to continue.");
       return;
@@ -254,13 +266,22 @@ export default function CanonFeed() {
     await runUnseal();
   };
 
-  // ✅ NEW: auto-run unseal after wallet connects
+  // Auto-run unseal after wallet connects (only once)
   useEffect(() => {
     if (!pendingUnseal) return;
     if (!isConnected || !address) return;
+    if (autoUnsealRanRef.current) return;
     runUnseal();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingUnseal, isConnected, address]);
+
+  const unsealLabel = useMemo(() => {
+    if (loadingBody) return "Unsealing…";
+    if (!isConnected) return "Connect & Unseal →";
+    if (gate.aligned === false || gate.aligned === null) return "Align to Unseal →";
+    if (gate.witnessed === false || gate.witnessed === null) return "Become Witness to Unseal →";
+    return "Unseal →";
+  }, [loadingBody, isConnected, gate.aligned, gate.witnessed]);
 
   return (
     <section className="rounded-3xl border border-zinc-200/10 bg-zinc-50/5 p-6 backdrop-blur">
@@ -276,7 +297,6 @@ export default function CanonFeed() {
               : "Official chapters. Excerpts are public. Full text is witnessed-gated."}
           </p>
 
-          {/* ✅ NEW: live gate line (matches your screenshot requirement) */}
           <p className="mt-5 text-sm text-zinc-200/55">{gateLine}</p>
 
           {isConnected && address && gate.factionName && (
@@ -295,7 +315,6 @@ export default function CanonFeed() {
         </div>
       </div>
 
-      {/* Eclipse cue — card only */}
       {eclipseUnlocked && (
         <div className="mt-6">
           <Card>
@@ -303,9 +322,7 @@ export default function CanonFeed() {
             <p className="mt-2 text-sm text-zinc-200/75">
               The witness threshold has been met. Elyndra is listening harder now.
             </p>
-            <p className="mt-3 text-xs text-zinc-200/55">
-              Tip: enable sound on the Threshold to feel the shift.
-            </p>
+            <p className="mt-3 text-xs text-zinc-200/55">Tip: enable sound on the Threshold to feel the shift.</p>
           </Card>
         </div>
       )}
@@ -335,7 +352,7 @@ export default function CanonFeed() {
                 <button
                   key={c.id}
                   onClick={() => openChapter(c)}
-                  className="group w-full text-left rounded-2xl border border-zinc-200/10 bg-black/20 p-5 hover:bg-black/30"
+                  className="group w-full rounded-2xl border border-zinc-200/10 bg-black/20 p-5 text-left hover:bg-black/30"
                 >
                   <div className="flex items-start justify-between gap-6">
                     <div>
@@ -380,8 +397,7 @@ export default function CanonFeed() {
               <>
                 <p className="mt-3 text-sm text-zinc-200/70">Full text requires an onchain witness mark.</p>
                 <p className="mt-2 text-xs text-zinc-200/55">
-                  If disconnected, Axiom will summon your wallet. Then Elyndra verifies witness + alignment before
-                  unsealing.
+                  Elyndra will verify your signature, then confirm witness status onchain.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-2">
@@ -391,11 +407,7 @@ export default function CanonFeed() {
                     disabled={loadingBody}
                     className="inline-flex items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-4 py-2 text-sm hover:bg-zinc-50/10 disabled:opacity-50"
                   >
-                    {loadingBody
-                      ? "Unsealing…"
-                      : !isConnected
-                        ? "Connect & Unseal →"
-                        : "Unseal →"}
+                    {unsealLabel}
                   </button>
 
                   <Link
@@ -404,18 +416,22 @@ export default function CanonFeed() {
                   >
                     Align →
                   </Link>
-
                   <Link
                     href="/reflect"
                     className="inline-flex items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-4 py-2 text-sm hover:bg-zinc-50/10"
                   >
                     Reflection →
                   </Link>
+                  <Link
+                    href="/chronicle#heartbeat"
+                    className="inline-flex items-center justify-center rounded-2xl border border-zinc-200/10 bg-zinc-50/5 px-4 py-2 text-sm hover:bg-zinc-50/10"
+                  >
+                    Heartbeat →
+                  </Link>
                 </div>
 
                 <p className="mt-4 text-xs text-zinc-200/55">
-                  To unseal:{" "}
-                  <span className="text-zinc-100/70">Aligned</span> +{" "}
+                  To unseal: <span className="text-zinc-100/70">Aligned</span> +{" "}
                   <span className="text-zinc-100/70">Witnessed</span>.
                 </p>
               </>
