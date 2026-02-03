@@ -1,156 +1,185 @@
+// scripts/generate-weekly-canon.mjs
 import fs from "node:fs";
 import path from "node:path";
-import crypto from "node:crypto";
 
-const GROQ_KEY = process.env.GROQ_API_KEY || "";
-if (!GROQ_KEY) throw new Error("Missing GROQ_API_KEY");
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+if (!GROQ_API_KEY) throw new Error("Missing GROQ_API_KEY");
 
-const MODEL = process.env.GROQ_MODEL || "llama-3.1-70b-versatile";
+const MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+const SEASON = Number(process.env.CANON_SEASON_ID || "1");
 
-const sealKeyB64 = process.env.CANON_SEAL_KEY || "";
-if (!sealKeyB64) throw new Error("Missing CANON_SEAL_KEY");
-const SEAL_KEY = Buffer.from(sealKeyB64, "base64");
-if (SEAL_KEY.length !== 32) throw new Error("CANON_SEAL_KEY must be 32 bytes base64");
-
-const chaptersPath = path.join(process.cwd(), "apps/web/lib/canon/chapters.json");
-
-function readChapters() {
-  const raw = fs.readFileSync(chaptersPath, "utf8");
-  const json = JSON.parse(raw);
-  if (!json.chapters || !Array.isArray(json.chapters)) json.chapters = [];
-  return json;
+function resolveCanonRoot() {
+  const cwd = process.cwd();
+  const candidates = [
+    path.join(cwd, "apps", "web", "content", "canon"),
+    path.join(cwd, "content", "canon"),
+  ];
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p) && fs.statSync(p).isDirectory()) return p;
+    } catch {}
+  }
+  return candidates[0]; // predictable default
 }
 
-function sha256(text) {
-  return crypto.createHash("sha256").update(text, "utf8").digest("hex");
+const CANON_ROOT = resolveCanonRoot();
+const SEASON_DIR = path.join(CANON_ROOT, `season-${SEASON}`);
+
+function ensureDir(p) {
+  fs.mkdirSync(p, { recursive: true });
 }
 
-function seal(body) {
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", SEAL_KEY, iv);
-  const ct = Buffer.concat([cipher.update(body, "utf8"), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  return {
-    alg: "aes-256-gcm",
-    ivB64: iv.toString("base64"),
-    tagB64: tag.toString("base64"),
-    ctB64: ct.toString("base64"),
-  };
+function listExistingChapterNums(dir) {
+  try {
+    const files = fs.readdirSync(dir);
+    const nums = [];
+    for (const f of files) {
+      const m = /^ch-(\d{3})\.md$/.exec(f);
+      if (m) nums.push(Number(m[1]));
+    }
+    return nums.sort((a, b) => a - b);
+  } catch {
+    return [];
+  }
 }
 
-function nextSlugAndId(chapters) {
-  // Find latest season 1 chapter index by slug "ch-001" etc
-  const s1 = chapters.filter((c) => Number(c.season) === 1);
-  const nums = s1
-    .map((c) => String(c.slug || "").match(/^ch-(\d{3})$/))
-    .filter(Boolean)
-    .map((m) => Number(m[1]));
-  const next = (nums.length ? Math.max(...nums) : 0) + 1;
-  const slug = `ch-${String(next).padStart(3, "0")}`;
-  const id = `s1-${slug}`;
-  return { slug, id, index: next };
+function pad3(n) {
+  return String(n).padStart(3, "0");
 }
 
-async function groqChat(messages) {
+function todayISODate() {
+  const d = new Date();
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+async function groqChat({ system, user }) {
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${GROQ_KEY}`,
+      Authorization: `Bearer ${GROQ_API_KEY}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
       model: MODEL,
-      temperature: 0.9,
-      max_tokens: 2200,
-      messages,
-      response_format: { type: "json_object" },
+      temperature: 0.75,
+      max_tokens: 1400,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
     }),
   });
 
-  const json = await res.json();
   if (!res.ok) {
-    throw new Error(`Groq error: ${res.status} ${JSON.stringify(json).slice(0, 400)}`);
+    const t = await res.text().catch(() => "");
+    throw new Error(`Groq API error: ${res.status} ${t}`);
   }
-  const content = json?.choices?.[0]?.message?.content || "{}";
-  return JSON.parse(content);
+
+  const json = await res.json();
+  const content = json?.choices?.[0]?.message?.content;
+  if (!content || typeof content !== "string") throw new Error("Groq returned empty content.");
+  return content.trim();
 }
 
-(async function main() {
-  const store = readChapters();
-  const chapters = store.chapters;
+function sanitizeTitle(s) {
+  return String(s || "")
+    .replace(/[\r\n]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80);
+}
 
-  const { slug, id, index } = nextSlugAndId(chapters);
-  const isoDate = new Date().toISOString().slice(0, 10);
+function parseDraft(draft) {
+  const lines = draft.split("\n");
+  let title = "";
+  let subtitle = "";
+  let bodyStart = 0;
 
-  const prompt = [
-    {
-      role: "system",
-      content:
-        "You are Axiom, an old and wise narrator in the world of Elyndra (AnimaSaga). " +
-        "Write a canon chapter in epic, readable prose. No profanity. No real-world politics. " +
-        "Keep continuity: factions are Flame, Veil, Echo, Crown. " +
-        "End the chapter with three branch choices suitable for a vote. " +
-        "Return ONLY JSON matching the schema.",
-    },
-    {
-      role: "user",
-      content: JSON.stringify({
-        schema: {
-          title: "string",
-          subtitle: "string (short)",
-          excerpt: "string (2–3 sentences, public)",
-          body: "string (full chapter, 900–1400 words, includes mysterious Axiom voice)",
-          choices: [
-            { id: "a|b|c", label: "string (short)", omen: "string (1 sentence consequence tease)" },
-          ],
-        },
-        context: {
-          season: 1,
-          chapterIndex: index,
-          slug,
-          theme: "Eclipse: consequences, fractures, vows, witness marks",
-          stylisticNotes: [
-            "Use sparse sacred imagery",
-            "Make each faction feel like a philosophy",
-            "Axiom speaks with measured authority",
-            "End with a single chilling line",
-          ],
-        },
-      }),
-    },
-  ];
-
-  const out = await groqChat(prompt);
-
-  if (!out?.title || !out?.excerpt || !out?.body || !Array.isArray(out?.choices)) {
-    throw new Error("Groq output missing required fields.");
+  for (let i = 0; i < Math.min(lines.length, 30); i++) {
+    const l = lines[i].trim();
+    if (l.toLowerCase().startsWith("title:")) title = l.slice(6).trim();
+    if (l.toLowerCase().startsWith("subtitle:")) subtitle = l.slice(9).trim();
+    if (l.toLowerCase().startsWith("body:")) {
+      bodyStart = i + 1;
+      break;
+    }
   }
 
-  const hashSha256 = sha256(out.body);
-  const sealed = seal(out.body);
-
-  const chapter = {
-    id,
-    season: 1,
-    slug,
-    title: String(out.title).trim(),
-    subtitle: String(out.subtitle || "").trim() || null,
-    isoDate,
-    excerpt: String(out.excerpt).trim(),
-    hashSha256,
-    sealed,
-    choices: out.choices.slice(0, 3).map((c) => ({
-      id: String(c.id || "").trim().slice(0, 1) || "a",
-      label: String(c.label || "").trim(),
-      omen: String(c.omen || "").trim(),
-    })),
+  const body = lines.slice(bodyStart).join("\n").trim();
+  return {
+    title: sanitizeTitle(title || "The Scar Deepens"),
+    subtitle: sanitizeTitle(subtitle || "Axiom records what the living refuse to say."),
+    body,
   };
+}
 
-  store.chapters.unshift(chapter);
+function buildMarkdown({ title, subtitle, date, body }) {
+  return `---
+title: "${title}"
+subtitle: "${subtitle}"
+date: "${date}"
+---
+${body}
+`;
+}
 
-  fs.writeFileSync(chaptersPath, JSON.stringify(store, null, 2) + "\n", "utf8");
-  console.log(`Wrote chapter ${id} (${slug})`);
-})().catch((e) => {
+async function main() {
+  ensureDir(SEASON_DIR);
+
+  const existing = listExistingChapterNums(SEASON_DIR);
+  const nextNum = (existing.at(-1) || 0) + 1;
+  const slug = `ch-${pad3(nextNum)}`;
+  const outPath = path.join(SEASON_DIR, `${slug}.md`);
+
+  const date = todayISODate();
+
+  const system =
+    `You are Axiom: an old, wise chronicler for an animecentric onchain narrative world called Elyndra.\n` +
+    `Write vivid, cinematic prose with disciplined clarity.\n` +
+    `No profanity. No real people. No copyrighted characters.\n` +
+    `End with 2–4 numbered choices that are short, decisive, and morally tense.\n` +
+    `Make it feel like a season arc called "Season 1: Eclipse".\n` +
+    `Keep the chapter length ~700–1100 words.\n` +
+    `Output format MUST be:\n` +
+    `Title: <...>\n` +
+    `Subtitle: <...>\n` +
+    `Body:\n` +
+    `<markdown body>\n`;
+
+  const user =
+    `Write the next canon chapter.\n` +
+    `Season: ${SEASON}\n` +
+    `Chapter slug: ${slug}\n` +
+    `Date (UTC): ${date}\n` +
+    `Factions: Flame, Veil, Echo (Crown is rare).\n` +
+    `Key motifs: fracture, scar, witness, alignment, eclipse.\n` +
+    `Include at least one subtle reference to Base/onchain permanence without sounding like marketing.\n`;
+
+  const draft = await groqChat({ system, user });
+  const parsed = parseDraft(draft);
+
+  if (!parsed.body || parsed.body.length < 200) {
+    throw new Error("Generated chapter body is too short / missing.");
+  }
+
+  const md = buildMarkdown({
+    title: parsed.title,
+    subtitle: parsed.subtitle,
+    date,
+    body: parsed.body,
+  });
+
+  fs.writeFileSync(outPath, md, "utf8");
+
+  console.log("Wrote chapter:", outPath);
+  console.log("Canon root:", CANON_ROOT);
+  console.log("Season:", SEASON, "Slug:", slug);
+}
+
+main().catch((e) => {
   console.error(e);
   process.exit(1);
 });
